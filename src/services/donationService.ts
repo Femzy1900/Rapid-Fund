@@ -1,0 +1,71 @@
+
+import { supabase } from '@/integrations/supabase/client';
+import { Donation } from '@/types';
+
+export const getDonationsByCampaign = async (campaignId: string, limit = 10) => {
+  const { data, error } = await supabase
+    .from('donations')
+    .select('*')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return data as Donation[];
+};
+
+export const createDonation = async (donation: Omit<Donation, 'id' | 'created_at'>) => {
+  // First create the donation
+  const { data, error } = await supabase
+    .from('donations')
+    .insert([donation])
+    .select()
+    .single();
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  // Then update the campaign's raised amount and donors count
+  await supabase.rpc('update_campaign_stats', { 
+    campaign_id: donation.campaign_id,
+    donation_amount: donation.amount
+  }).catch(error => {
+    console.error('Failed to update campaign stats:', error);
+  });
+  
+  // If user is authenticated, update their total donated amount
+  if (donation.user_id) {
+    await supabase.rpc('update_user_donation_stats', { 
+      user_id: donation.user_id,
+      donation_amount: donation.amount
+    }).catch(error => {
+      console.error('Failed to update user stats:', error);
+    });
+  }
+  
+  return data as Donation;
+};
+
+export const getDonationsByUser = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('donations')
+    .select(`
+      *,
+      campaigns (
+        title,
+        image_url
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return data;
+};

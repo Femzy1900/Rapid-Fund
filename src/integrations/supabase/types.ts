@@ -9,7 +9,125 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      campaigns: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string
+          donors_count: number | null
+          expires_at: string
+          id: string
+          image_url: string | null
+          is_urgent: boolean | null
+          is_verified: boolean | null
+          raised_amount: number | null
+          target_amount: number
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description: string
+          donors_count?: number | null
+          expires_at: string
+          id?: string
+          image_url?: string | null
+          is_urgent?: boolean | null
+          is_verified?: boolean | null
+          raised_amount?: number | null
+          target_amount: number
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string
+          donors_count?: number | null
+          expires_at?: string
+          id?: string
+          image_url?: string | null
+          is_urgent?: boolean | null
+          is_verified?: boolean | null
+          raised_amount?: number | null
+          target_amount?: number
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      donations: {
+        Row: {
+          amount: number
+          campaign_id: string | null
+          created_at: string | null
+          id: string
+          is_anonymous: boolean | null
+          message: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_anonymous?: boolean | null
+          message?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          campaign_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_anonymous?: boolean | null
+          message?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "donations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          campaigns_created: number | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          total_donated: number | null
+          website: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          campaigns_created?: number | null
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          total_donated?: number | null
+          website?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          campaigns_created?: number | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          total_donated?: number | null
+          website?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
