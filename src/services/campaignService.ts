@@ -6,13 +6,14 @@ export const getCampaigns = async (filters?: {
   category?: string, 
   isUrgent?: boolean,
   isVerified?: boolean,
+  userId?: string,
   limit?: number,
   offset?: number,
   sortBy?: 'newest' | 'oldest' | 'most_funded' | 'least_funded'
 }) => {
   let query = supabase.from('campaigns').select('*');
   
-  if (filters?.category) {
+  if (filters?.category && filters.category !== 'all') {
     query = query.eq('category', filters.category);
   }
   
@@ -22,6 +23,10 @@ export const getCampaigns = async (filters?: {
   
   if (filters?.isVerified !== undefined) {
     query = query.eq('is_verified', filters.isVerified);
+  }
+  
+  if (filters?.userId) {
+    query = query.eq('user_id', filters.userId);
   }
   
   if (filters?.sortBy) {

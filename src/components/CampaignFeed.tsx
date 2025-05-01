@@ -34,8 +34,7 @@ const CampaignFeed = () => {
       sortBy,
       limit: CAMPAIGNS_PER_PAGE,
       offset: (page - 1) * CAMPAIGNS_PER_PAGE
-    }),
-    keepPreviousData: true
+    })
   });
 
   const categories = [

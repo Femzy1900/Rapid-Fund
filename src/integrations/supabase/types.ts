@@ -133,7 +133,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_user_campaign_count: {
+        Args: { user_id: string }
+        Returns: undefined
+      }
+      update_campaign_stats: {
+        Args: { campaign_id: string; donation_amount: number }
+        Returns: undefined
+      }
+      update_user_donation_stats: {
+        Args: { user_id: string; donation_amount: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

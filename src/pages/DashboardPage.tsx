@@ -1,0 +1,262 @@
+
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { getCampaigns } from '@/services/campaignService';
+import { getProfile } from '@/services/profileService';
+import Navigation from '@/components/Navigation';
+import Footer from '@/components/Footer';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Campaign } from '@/types';
+import { Edit, Trash, Clock, Users, PlusCircle } from 'lucide-react';
+
+const DashboardPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  React.useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
+  
+  const { data: profile } = useQuery({
+    queryKey: ['profile', user?.id],
+    queryFn: () => user ? getProfile(user.id) : Promise.reject('Not authenticated'),
+    enabled: !!user
+  });
+  
+  const { data: userCampaigns } = useQuery({
+    queryKey: ['userCampaigns', user?.id],
+    queryFn: () => getCampaigns({ userId: user?.id }),
+    enabled: !!user
+  });
+  
+  if (!user) {
+    return null;
+  }
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+  
+  const calculateDaysLeft = (expiresAt: string) => {
+    const expiry = new Date(expiresAt).getTime();
+    const now = new Date().getTime();
+    const diff = expiry - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+  
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navigation />
+      
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+          <h1 className="text-3xl font-bold mb-4 md:mb-0">My Dashboard</h1>
+          <Button 
+            onClick={() => navigate('/create-campaign')}
+            className="flex items-center gap-2"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Create Campaign
+          </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-gray-500">Campaigns</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {profile?.campaigns_created || 0}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-gray-500">Donations Made</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">
+                {formatCurrency(profile?.total_donated || 0)}
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-gray-500">Total Raised</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">
+                {formatCurrency(userCampaigns?.reduce((sum: number, campaign: Campaign) => 
+                  sum + (campaign.raised_amount || 0), 0) || 0
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <Tabs defaultValue="active" className="mt-8">
+          <TabsList className="mb-6">
+            <TabsTrigger value="active">Active Campaigns</TabsTrigger>
+            <TabsTrigger value="ended">Ended Campaigns</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="active">
+            <div className="space-y-4">
+              {userCampaigns && userCampaigns.filter((campaign: Campaign) => 
+                new Date(campaign.expires_at) > new Date()
+              ).map((campaign: Campaign) => (
+                <CampaignListItem key={campaign.id} campaign={campaign} />
+              ))}
+              
+              {userCampaigns?.filter((campaign: Campaign) => 
+                new Date(campaign.expires_at) > new Date()
+              ).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No active campaigns. <Button variant="link" onClick={() => navigate('/create-campaign')}>Create one now</Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="ended">
+            <div className="space-y-4">
+              {userCampaigns && userCampaigns.filter((campaign: Campaign) => 
+                new Date(campaign.expires_at) <= new Date()
+              ).map((campaign: Campaign) => (
+                <CampaignListItem key={campaign.id} campaign={campaign} />
+              ))}
+              
+              {userCampaigns?.filter((campaign: Campaign) => 
+                new Date(campaign.expires_at) <= new Date()
+              ).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No ended campaigns.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </main>
+      
+      <Footer />
+    </div>
+  );
+};
+
+const CampaignListItem = ({ campaign }: { campaign: Campaign }) => {
+  const progressPercentage = Math.min(
+    Math.round((campaign.raised_amount / campaign.target_amount) * 100),
+    100
+  );
+  
+  const daysLeft = calculateDaysLeft(campaign.expires_at);
+  const isActive = new Date(campaign.expires_at) > new Date();
+  
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+  
+  function calculateDaysLeft(expiresAt: string) {
+    const expiry = new Date(expiresAt).getTime();
+    const now = new Date().getTime();
+    const diff = expiry - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
+  
+  const navigate = useNavigate();
+  
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="w-full md:w-24 h-20">
+            <img 
+              src={campaign.image_url || 'https://placehold.co/600x400?text=Campaign'} 
+              alt={campaign.title}
+              className="w-full h-full object-cover rounded"
+            />
+          </div>
+          
+          <div className="flex-grow">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
+              <div className="flex items-center gap-2 mb-2 md:mb-0">
+                <h3 
+                  onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                  className="font-semibold cursor-pointer hover:text-blue-500 transition-colors"
+                >
+                  {campaign.title}
+                </h3>
+                
+                <Badge variant="outline" className="bg-blue-50">
+                  {campaign.category}
+                </Badge>
+                
+                {campaign.is_urgent && (
+                  <Badge className="bg-red-500 hover:bg-red-600">URGENT</Badge>
+                )}
+              </div>
+              
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-8">
+                  <Edit className="h-4 w-4 mr-1" /> Edit
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 text-red-600 hover:text-red-700">
+                  <Trash className="h-4 w-4 mr-1" /> Delete
+                </Button>
+              </div>
+            </div>
+            
+            <div className="mb-2">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-medium">{formatCurrency(campaign.raised_amount)}</span>
+                <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
+              </div>
+              <Progress value={progressPercentage} className="h-2" />
+            </div>
+            
+            <div className="flex flex-col md:flex-row justify-between text-sm text-gray-500">
+              <div className="flex items-center">
+                <Clock className="h-3.5 w-3.5 mr-1" />
+                {isActive ? (
+                  <span>{daysLeft} days left</span>
+                ) : (
+                  <span className="text-red-500">Campaign ended</span>
+                )}
+              </div>
+              
+              <div className="flex items-center">
+                <Users className="h-3.5 w-3.5 mr-1" />
+                <span>{campaign.donors_count || 0} donors</span>
+              </div>
+              
+              <div>{progressPercentage}% funded</div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default DashboardPage;

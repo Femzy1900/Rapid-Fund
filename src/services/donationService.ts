@@ -29,22 +29,18 @@ export const createDonation = async (donation: Omit<Donation, 'id' | 'created_at
     throw new Error(error.message);
   }
   
-  // Then update the campaign's raised amount and donors count
+  // Then update the campaign's raised amount and donors count using RPC
   await supabase.rpc('update_campaign_stats', { 
     campaign_id: donation.campaign_id,
     donation_amount: donation.amount
-  }).catch(error => {
-    console.error('Failed to update campaign stats:', error);
-  });
+  }).then(null);
   
   // If user is authenticated, update their total donated amount
   if (donation.user_id) {
     await supabase.rpc('update_user_donation_stats', { 
       user_id: donation.user_id,
       donation_amount: donation.amount
-    }).catch(error => {
-      console.error('Failed to update user stats:', error);
-    });
+    }).then(null);
   }
   
   return data as Donation;
