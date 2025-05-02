@@ -12,7 +12,7 @@ const Footer = () => {
               <div className="w-8 h-8 rounded-md bg-blue-500 flex items-center justify-center">
                 <span className="text-white font-bold">R</span>
               </div>
-              <span className="font-bold text-xl text-white">RapidRelief</span>
+              <span className="font-bold text-xl text-white">RapidFund</span>
             </div>
             <p className="mb-4 text-gray-400">
               Connecting those in urgent need with immediate financial support.
@@ -76,7 +76,7 @@ const Footer = () => {
         
         <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
           <div className="text-sm text-gray-500 mb-4 md:mb-0">
-            © 2025 RapidRelief. All rights reserved.
+            © 2025 RapidFund. All rights reserved.
           </div>
           <div className="flex gap-6">
             <Link to="/terms" className="text-sm text-gray-500 hover:text-gray-300 transition-colors">Terms of Service</Link>

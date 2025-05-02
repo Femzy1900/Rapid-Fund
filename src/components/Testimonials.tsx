@@ -6,7 +6,7 @@ const Testimonials = () => {
   const testimonials = [
     {
       id: 1,
-      quote: "Within 10 minutes of posting my medical emergency, I had the funds to pay for my daughter's treatment. RapidRelief literally saved her life.",
+      quote: "Within 10 minutes of posting my medical emergency, I had the funds to pay for my daughter's treatment. RapidFund literally saved her life.",
       name: "Jennifer L.",
       location: "Dallas, TX",
       image: "https://randomuser.me/api/portraits/women/32.jpg",
@@ -14,7 +14,7 @@ const Testimonials = () => {
     },
     {
       id: 2,
-      quote: "After the hurricane hit, we were desperate. Traditional aid was weeks away, but through RapidRelief, we had support within hours.",
+      quote: "After the hurricane hit, we were desperate. Traditional aid was weeks away, but through RapidFund, we had support within hours.",
       name: "Marcus T.",
       location: "New Orleans, LA",
       image: "https://randomuser.me/api/portraits/men/42.jpg",
@@ -36,7 +36,7 @@ const Testimonials = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold">Success Stories</h2>
           <p className="text-gray-600 mt-2 max-w-2xl mx-auto">
-            Real people, real impact—see how RapidRelief is making a difference
+            Real people, real impact—see how RapidFund is making a difference
           </p>
         </div>
         
@@ -91,7 +91,7 @@ const Testimonials = () => {
               <span className="ml-2 font-bold">4.9/5</span>
             </div>
             <p className="text-xl md:text-2xl font-medium">
-              "RapidRelief has helped over <span className="text-blue-600 font-bold">25,000 people</span> receive urgent financial support since 2023"
+              "RapidFund has helped over <span className="text-blue-600 font-bold">25,000 people</span> receive urgent financial support since 2023"
             </p>
           </div>
         </div>
