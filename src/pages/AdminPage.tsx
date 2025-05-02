@@ -79,7 +79,7 @@ const AdminPage = () => {
     try {
       await updateWithdrawalRequestStatus(
         selectedRequest.id, 
-        action,
+        action === 'approve' ? 'approved' : 'rejected',
         notes
       );
       
@@ -122,13 +122,16 @@ const AdminPage = () => {
     return null;
   }
   
-  const pendingRequests = withdrawalRequests?.filter(
-    (req: WithdrawalRequest) => req.status === 'pending'
-  ) || [];
+  // Type assertion to fix the filter error
+  const allRequests = withdrawalRequests as WithdrawalRequest[] || [];
   
-  const processedRequests = withdrawalRequests?.filter(
-    (req: WithdrawalRequest) => req.status !== 'pending'
-  ) || [];
+  const pendingRequests = allRequests.filter(
+    (req) => req.status === 'pending'
+  );
+  
+  const processedRequests = allRequests.filter(
+    (req) => req.status !== 'pending'
+  );
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -153,7 +156,7 @@ const AdminPage = () => {
               {requestsLoading ? (
                 <div className="text-center py-8">Loading requests...</div>
               ) : pendingRequests.length > 0 ? (
-                pendingRequests.map((request: WithdrawalRequest) => (
+                pendingRequests.map((request) => (
                   <WithdrawalRequestCard
                     key={request.id}
                     request={request}
@@ -174,7 +177,7 @@ const AdminPage = () => {
               {requestsLoading ? (
                 <div className="text-center py-8">Loading requests...</div>
               ) : processedRequests.length > 0 ? (
-                processedRequests.map((request: WithdrawalRequest) => (
+                processedRequests.map((request) => (
                   <WithdrawalRequestCard
                     key={request.id}
                     request={request}

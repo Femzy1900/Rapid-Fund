@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export type WithdrawalRequest = {
@@ -115,4 +114,14 @@ export const getWithdrawalRequestsByCampaign = async (campaignId: string) => {
   }
   
   return data as WithdrawalRequest[];
+};
+
+export const setUserAsAdmin = async (email: string) => {
+  const { data, error } = await supabase.rpc('set_user_as_admin', { email_address: email });
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return data;
 };

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -202,6 +201,20 @@ const CampaignPage = () => {
                         <CardTitle>Campaign Details</CardTitle>
                       </CardHeader>
                       <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-500 mb-1">Target</p>
+                            <p className="text-xl font-bold text-blue-700">{formatCurrency(campaign.target_amount)}</p>
+                          </div>
+                          <div className="bg-green-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-500 mb-1">Raised</p>
+                            <p className="text-xl font-bold text-green-700">{formatCurrency(campaign.raised_amount)}</p>
+                          </div>
+                          <div className="bg-purple-50 p-4 rounded-lg">
+                            <p className="text-sm text-gray-500 mb-1">Donors</p>
+                            <p className="text-xl font-bold text-purple-700">{campaign.donors_count}</p>
+                          </div>
+                        </div>
                         <p className="whitespace-pre-line">{campaign.description}</p>
                       </CardContent>
                     </Card>
