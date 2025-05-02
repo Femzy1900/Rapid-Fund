@@ -1,9 +1,9 @@
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { getCampaigns } from '@/services/campaignService';
+import { getCampaigns, deleteCampaign } from '@/services/campaignService';
 import { getProfile } from '@/services/profileService';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -14,10 +14,23 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Campaign } from '@/types';
 import { Edit, Trash, Clock, Users, PlusCircle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/components/ui/use-toast';
 
 const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   React.useEffect(() => {
     if (!user) {
@@ -31,7 +44,7 @@ const DashboardPage = () => {
     enabled: !!user
   });
   
-  const { data: userCampaigns } = useQuery({
+  const { data: userCampaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['userCampaigns', user?.id],
     queryFn: () => getCampaigns({ userId: user?.id }),
     enabled: !!user
@@ -116,41 +129,55 @@ const DashboardPage = () => {
             <TabsTrigger value="ended">Ended Campaigns</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="active">
-            <div className="space-y-4">
-              {userCampaigns && userCampaigns.filter((campaign: Campaign) => 
-                new Date(campaign.expires_at) > new Date()
-              ).map((campaign: Campaign) => (
-                <CampaignListItem key={campaign.id} campaign={campaign} />
-              ))}
-              
-              {userCampaigns?.filter((campaign: Campaign) => 
-                new Date(campaign.expires_at) > new Date()
-              ).length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No active campaigns. <Button variant="link" onClick={() => navigate('/create-campaign')}>Create one now</Button>
+          {campaignsLoading ? (
+            <div className="text-center py-8">Loading your campaigns...</div>
+          ) : (
+            <>
+              <TabsContent value="active">
+                <div className="space-y-4">
+                  {userCampaigns && userCampaigns.filter((campaign: Campaign) => 
+                    new Date(campaign.expires_at) > new Date()
+                  ).map((campaign: Campaign) => (
+                    <CampaignListItem 
+                      key={campaign.id} 
+                      campaign={campaign} 
+                      queryClient={queryClient}
+                    />
+                  ))}
+                  
+                  {userCampaigns?.filter((campaign: Campaign) => 
+                    new Date(campaign.expires_at) > new Date()
+                  ).length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      No active campaigns. <Button variant="link" onClick={() => navigate('/create-campaign')}>Create one now</Button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="ended">
-            <div className="space-y-4">
-              {userCampaigns && userCampaigns.filter((campaign: Campaign) => 
-                new Date(campaign.expires_at) <= new Date()
-              ).map((campaign: Campaign) => (
-                <CampaignListItem key={campaign.id} campaign={campaign} />
-              ))}
+              </TabsContent>
               
-              {userCampaigns?.filter((campaign: Campaign) => 
-                new Date(campaign.expires_at) <= new Date()
-              ).length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No ended campaigns.
+              <TabsContent value="ended">
+                <div className="space-y-4">
+                  {userCampaigns && userCampaigns.filter((campaign: Campaign) => 
+                    new Date(campaign.expires_at) <= new Date()
+                  ).map((campaign: Campaign) => (
+                    <CampaignListItem 
+                      key={campaign.id} 
+                      campaign={campaign} 
+                      queryClient={queryClient}
+                    />
+                  ))}
+                  
+                  {userCampaigns?.filter((campaign: Campaign) => 
+                    new Date(campaign.expires_at) <= new Date()
+                  ).length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      No ended campaigns.
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </TabsContent>
+              </TabsContent>
+            </>
+          )}
         </Tabs>
       </main>
       
@@ -159,7 +186,7 @@ const DashboardPage = () => {
   );
 };
 
-const CampaignListItem = ({ campaign }: { campaign: Campaign }) => {
+const CampaignListItem = ({ campaign, queryClient }: { campaign: Campaign, queryClient: any }) => {
   const progressPercentage = Math.min(
     Math.round((campaign.raised_amount / campaign.target_amount) * 100),
     100
@@ -167,6 +194,11 @@ const CampaignListItem = ({ campaign }: { campaign: Campaign }) => {
   
   const daysLeft = calculateDaysLeft(campaign.expires_at);
   const isActive = new Date(campaign.expires_at) > new Date();
+  
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -184,78 +216,143 @@ const CampaignListItem = ({ campaign }: { campaign: Campaign }) => {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
   
-  const navigate = useNavigate();
+  const handleEditCampaign = () => {
+    navigate(`/edit-campaign/${campaign.id}`);
+  };
+  
+  const handleDeleteCampaign = async () => {
+    setIsDeleting(true);
+    
+    try {
+      await deleteCampaign(campaign.id);
+      
+      // Refresh campaigns data
+      queryClient.invalidateQueries(['userCampaigns']);
+      queryClient.invalidateQueries(['profile']);
+      
+      toast({
+        title: "Campaign deleted",
+        description: "The campaign has been successfully deleted.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error deleting campaign",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setConfirmDialogOpen(false);
+    }
+  };
   
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="w-full md:w-24 h-20">
-            <img 
-              src={campaign.image_url || 'https://placehold.co/600x400?text=Campaign'} 
-              alt={campaign.title}
-              className="w-full h-full object-cover rounded"
-            />
-          </div>
-          
-          <div className="flex-grow">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
-              <div className="flex items-center gap-2 mb-2 md:mb-0">
-                <h3 
-                  onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                  className="font-semibold cursor-pointer hover:text-blue-500 transition-colors"
-                >
-                  {campaign.title}
-                </h3>
-                
-                <Badge variant="outline" className="bg-blue-50">
-                  {campaign.category}
-                </Badge>
-                
-                {campaign.is_urgent && (
-                  <Badge className="bg-red-500 hover:bg-red-600">URGENT</Badge>
-                )}
-              </div>
-              
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="h-8">
-                  <Edit className="h-4 w-4 mr-1" /> Edit
-                </Button>
-                <Button variant="outline" size="sm" className="h-8 text-red-600 hover:text-red-700">
-                  <Trash className="h-4 w-4 mr-1" /> Delete
-                </Button>
-              </div>
+    <>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="w-full md:w-24 h-20">
+              <img 
+                src={campaign.image_url || 'https://placehold.co/600x400?text=Campaign'} 
+                alt={campaign.title}
+                className="w-full h-full object-cover rounded"
+              />
             </div>
             
-            <div className="mb-2">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="font-medium">{formatCurrency(campaign.raised_amount)}</span>
-                <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
-              </div>
-              <Progress value={progressPercentage} className="h-2" />
-            </div>
-            
-            <div className="flex flex-col md:flex-row justify-between text-sm text-gray-500">
-              <div className="flex items-center">
-                <Clock className="h-3.5 w-3.5 mr-1" />
-                {isActive ? (
-                  <span>{daysLeft} days left</span>
-                ) : (
-                  <span className="text-red-500">Campaign ended</span>
-                )}
+            <div className="flex-grow">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
+                <div className="flex items-center gap-2 mb-2 md:mb-0">
+                  <h3 
+                    onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                    className="font-semibold cursor-pointer hover:text-blue-500 transition-colors"
+                  >
+                    {campaign.title}
+                  </h3>
+                  
+                  <Badge variant="outline" className="bg-blue-50">
+                    {campaign.category}
+                  </Badge>
+                  
+                  {campaign.is_urgent && (
+                    <Badge className="bg-red-500 hover:bg-red-600">URGENT</Badge>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8"
+                    onClick={handleEditCampaign}
+                  >
+                    <Edit className="h-4 w-4 mr-1" /> Edit
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 text-red-600 hover:text-red-700"
+                    onClick={() => setConfirmDialogOpen(true)}
+                  >
+                    <Trash className="h-4 w-4 mr-1" /> Delete
+                  </Button>
+                </div>
               </div>
               
-              <div className="flex items-center">
-                <Users className="h-3.5 w-3.5 mr-1" />
-                <span>{campaign.donors_count || 0} donors</span>
+              <div className="mb-2">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="font-medium">{formatCurrency(campaign.raised_amount)}</span>
+                  <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
+                </div>
+                <Progress value={progressPercentage} className="h-2" />
               </div>
               
-              <div>{progressPercentage}% funded</div>
+              <div className="flex flex-col md:flex-row justify-between text-sm text-gray-500">
+                <div className="flex items-center">
+                  <Clock className="h-3.5 w-3.5 mr-1" />
+                  {isActive ? (
+                    <span>{daysLeft} days left</span>
+                  ) : (
+                    <span className="text-red-500">Campaign ended</span>
+                  )}
+                </div>
+                
+                <div className="flex items-center">
+                  <Users className="h-3.5 w-3.5 mr-1" />
+                  <span>{campaign.donors_count || 0} donors</span>
+                </div>
+                
+                <div>{progressPercentage}% funded</div>
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your campaign
+              and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteCampaign();
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete Campaign"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 

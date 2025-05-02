@@ -65,6 +65,18 @@ export const getCampaigns = async (filters?: {
   return data as Campaign[];
 };
 
+export const getAllCampaigns = async (
+  page = 1, 
+  pageSize = 10, 
+  sortBy = 'newest'
+) => {
+  return getCampaigns({
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+    sortBy: sortBy as 'newest' | 'oldest' | 'most_funded' | 'least_funded'
+  });
+};
+
 export const getCampaignById = async (id: string) => {
   const { data, error } = await supabase
     .from('campaigns')
@@ -82,7 +94,17 @@ export const getCampaignById = async (id: string) => {
 export const createCampaign = async (campaign: Omit<Campaign, 'id' | 'created_at' | 'raised_amount' | 'donors_count'>) => {
   const { data, error } = await supabase
     .from('campaigns')
-    .insert([campaign])
+    .insert([{
+      title: campaign.title,
+      description: campaign.description,
+      image_url: campaign.image_url,
+      category: campaign.category,
+      is_verified: campaign.is_verified,
+      is_urgent: campaign.is_urgent,
+      target_amount: campaign.target_amount,
+      expires_at: campaign.expires_at,
+      user_id: campaign.user_id
+    }])
     .select()
     .single();
   

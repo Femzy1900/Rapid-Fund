@@ -65,3 +65,33 @@ export const getDonationsByUser = async (userId: string) => {
   
   return data;
 };
+
+export const createStripeCheckoutSession = async (
+  campaignId: string, 
+  amount: number, 
+  message?: string, 
+  isAnonymous?: boolean,
+  donorInfo?: { userId: string }
+) => {
+  const { data, error } = await supabase.functions.invoke('create-payment', {
+    body: { campaignId, amount, message, isAnonymous, donorInfo }
+  });
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return data as { url: string };
+};
+
+export const processDonationFromStripe = async (sessionId: string) => {
+  const { data, error } = await supabase.functions.invoke('process-donation', {
+    body: { sessionId }
+  });
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return data;
+};

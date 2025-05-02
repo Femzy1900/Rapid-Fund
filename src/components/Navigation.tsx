@@ -26,6 +26,7 @@ const Navigation = () => {
 
   const navLinks = [
     { name: 'Home', path: '/' },
+    { name: 'All Campaigns', path: '/campaigns' },
     { name: 'About', path: '/about' },
     { name: 'Start Campaign', path: '/create-campaign' },
   ];

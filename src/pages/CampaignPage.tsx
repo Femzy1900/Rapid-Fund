@@ -1,9 +1,9 @@
 
-import React from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCampaignById } from '@/services/campaignService';
-import { getDonationsByCampaign } from '@/services/donationService';
+import { getDonationsByCampaign, createStripeCheckoutSession, processDonationFromStripe } from '@/services/donationService';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,10 +13,68 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, Clock, Users, Calendar } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Donation } from '@/types';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
 
 const CampaignPage = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [donationAmount, setDonationAmount] = useState<number>(25);
+  const [donationMessage, setDonationMessage] = useState<string>("");
+  const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Handle donation success from Stripe redirect
+  React.useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    const campaignId = searchParams.get('campaign_id');
+    
+    if (sessionId && campaignId) {
+      const processPayment = async () => {
+        try {
+          await processDonationFromStripe(sessionId);
+          
+          // Clear URL params
+          navigate(`/campaigns/${campaignId}`, { replace: true });
+          
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
+          queryClient.invalidateQueries({ queryKey: ['donations', campaignId] });
+          
+          toast({
+            title: "Donation successful!",
+            description: "Thank you for your generosity.",
+            variant: "default",
+          });
+        } catch (error) {
+          toast({
+            title: "Error processing donation",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
+      };
+      
+      processPayment();
+    }
+  }, [searchParams, navigate, queryClient, toast]);
   
   const { data: campaign, isLoading: campaignLoading, error: campaignError } = useQuery({
     queryKey: ['campaign', id],
@@ -29,6 +87,34 @@ const CampaignPage = () => {
     queryFn: () => id ? getDonationsByCampaign(id) : Promise.reject('No campaign ID'),
     enabled: !!id
   });
+
+  const handleDonate = async () => {
+    if (!id) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const donorInfo = user ? { userId: user.id } : undefined;
+      
+      const { url } = await createStripeCheckoutSession(
+        id, 
+        donationAmount, 
+        donationMessage, 
+        isAnonymous, 
+        donorInfo
+      );
+      
+      // Redirect to Stripe Checkout
+      window.location.href = url;
+    } catch (error) {
+      toast({
+        title: "Error creating checkout",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
+  };
   
   if (campaignLoading) {
     return (
@@ -161,15 +247,81 @@ const CampaignPage = () => {
                   </div>
                 </div>
                 
-                <Button 
-                  className="w-full mb-4 bg-blue-500 hover:bg-blue-600"
-                >
-                  Donate Now
-                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      className="w-full mb-4 bg-blue-500 hover:bg-blue-600"
+                    >
+                      Donate Now
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Make a Donation</DialogTitle>
+                      <DialogDescription>
+                        Your support means a lot. Enter the amount you wish to donate.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="amount">Donation Amount ($)</Label>
+                        <Input
+                          id="amount"
+                          type="number"
+                          min="1"
+                          value={donationAmount}
+                          onChange={(e) => setDonationAmount(parseInt(e.target.value))}
+                          placeholder="25"
+                          className="w-full"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="message">Message (Optional)</Label>
+                        <Textarea
+                          id="message"
+                          value={donationMessage}
+                          onChange={(e) => setDonationMessage(e.target.value)}
+                          placeholder="Add a message of support..."
+                          className="w-full"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="anonymous"
+                          checked={isAnonymous}
+                          onCheckedChange={(checked) => 
+                            setIsAnonymous(checked === true)
+                          }
+                        />
+                        <label
+                          htmlFor="anonymous"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Donate anonymously
+                        </label>
+                      </div>
+                    </div>
+                    
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button 
+                        onClick={handleDonate} 
+                        disabled={!donationAmount || donationAmount <= 0 || isProcessing}
+                      >
+                        {isProcessing ? "Processing..." : "Continue to Payment"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
                 
                 {!user && (
                   <p className="text-sm text-center text-gray-500 mb-4">
-                    You need to <a href="/auth" className="text-blue-500 hover:underline">log in</a> to donate
+                    You need to <a href="/auth" className="text-blue-500 hover:underline">log in</a> to track your donations
                   </p>
                 )}
                 
