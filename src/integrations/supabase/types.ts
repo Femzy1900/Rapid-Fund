@@ -209,6 +209,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: boolean
       }
+      set_user_as_admin: {
+        Args: { email_address: string }
+        Returns: boolean
+      }
       update_campaign_stats: {
         Args: { campaign_id: string; donation_amount: number }
         Returns: undefined
