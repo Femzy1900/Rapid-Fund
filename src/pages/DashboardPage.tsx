@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Campaign } from '@/types';
-import { Edit, Trash, Clock, Users, PlusCircle } from 'lucide-react';
+import { Edit, Trash, Clock, Users, PlusCircle, DollarSign, TrendingUp } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +69,13 @@ const DashboardPage = () => {
     const diff = expiry - now;
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
+
+  // Calculate total donations and donors
+  const totalDonors = userCampaigns?.reduce((sum: number, campaign: Campaign) => 
+    sum + (campaign.donors_count || 0), 0) || 0;
+  
+  const totalRaised = userCampaigns?.reduce((sum: number, campaign: Campaign) => 
+    sum + (campaign.raised_amount || 0), 0) || 0;
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -86,7 +93,7 @@ const DashboardPage = () => {
           </Button>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-gray-500">Campaigns</CardTitle>
@@ -103,8 +110,9 @@ const DashboardPage = () => {
               <CardTitle className="text-sm text-gray-500">Donations Made</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-600">
+              <div className="text-3xl font-bold text-blue-600 flex items-center">
                 {formatCurrency(profile?.total_donated || 0)}
+                <DollarSign className="h-5 w-5 ml-1 text-green-500" />
               </div>
             </CardContent>
           </Card>
@@ -114,10 +122,21 @@ const DashboardPage = () => {
               <CardTitle className="text-sm text-gray-500">Total Raised</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-600">
-                {formatCurrency(userCampaigns?.reduce((sum: number, campaign: Campaign) => 
-                  sum + (campaign.raised_amount || 0), 0) || 0
-                )}
+              <div className="text-3xl font-bold text-green-600 flex items-center">
+                {formatCurrency(totalRaised)}
+                <TrendingUp className="h-5 w-5 ml-1 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-gray-500">Total Donors</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600 flex items-center">
+                {totalDonors}
+                <Users className="h-5 w-5 ml-1 text-blue-500" />
               </div>
             </CardContent>
           </Card>
@@ -300,7 +319,10 @@ const CampaignListItem = ({ campaign, queryClient }: { campaign: Campaign, query
               
               <div className="mb-2">
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium">{formatCurrency(campaign.raised_amount)}</span>
+                  <span className="font-medium flex items-center">
+                    {formatCurrency(campaign.raised_amount)}
+                    <DollarSign className="h-3.5 w-3.5 ml-1 text-green-500" />
+                  </span>
                   <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
                 </div>
                 <Progress value={progressPercentage} className="h-2" />

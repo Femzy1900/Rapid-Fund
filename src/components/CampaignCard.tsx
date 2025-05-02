@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Campaign } from '@/types';
-import { CheckCircle, Clock } from 'lucide-react';
+import { CheckCircle, Clock, Users, DollarSign } from 'lucide-react';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -69,7 +69,10 @@ const CampaignCard = ({ campaign }: { campaign: Campaign }) => {
           
           <div className="mt-4">
             <div className="flex justify-between text-sm mb-1">
-              <span className="font-medium">{formatCurrency(campaign.raised_amount)}</span>
+              <span className="font-medium flex items-center">
+                {formatCurrency(campaign.raised_amount)}
+                <DollarSign className="h-3 w-3 ml-1 text-green-500" />
+              </span>
               <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
             </div>
             <Progress value={progressPercentage} className="h-2" />
@@ -78,7 +81,10 @@ const CampaignCard = ({ campaign }: { campaign: Campaign }) => {
         
         <CardFooter>
           <div className="w-full flex justify-between items-center text-sm text-gray-500">
-            <span>{campaign.donors_count} donors</span>
+            <div className="flex items-center">
+              <Users className="h-3 w-3 mr-1" />
+              <span>{campaign.donors_count} donors</span>
+            </div>
             <span>{progressPercentage}% funded</span>
           </div>
         </CardFooter>
