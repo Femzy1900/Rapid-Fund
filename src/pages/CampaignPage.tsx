@@ -1,120 +1,55 @@
 
 import React, { useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCampaignById } from '@/services/campaignService';
-import { getDonationsByCampaign, createStripeCheckoutSession, processDonationFromStripe } from '@/services/donationService';
+import { getDonationsByCampaign } from '@/services/donationService';
+import { getWithdrawalRequestsByCampaign } from '@/services/withdrawalService';
+import { useAuth } from '@/context/AuthContext';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, Clock, Users, Calendar } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { CheckCircle, Clock, DollarSign, Users, Heart } from 'lucide-react';
+import { formatCurrency, calculateDaysLeft } from '@/utils/formatters';
+import WithdrawalRequestForm from '@/components/WithdrawalRequestForm';
+import WithdrawalRequestsList from '@/components/WithdrawalRequestsList';
 import { Donation } from '@/types';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/ui/use-toast";
+import { createStripeCheckoutSession } from '@/services/donationService';
 
 const CampaignPage = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [donationAmount, setDonationAmount] = useState<number>(25);
-  const [donationMessage, setDonationMessage] = useState<string>("");
-  const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
-  // Handle donation success from Stripe redirect
-  React.useEffect(() => {
-    const sessionId = searchParams.get('session_id');
-    const campaignId = searchParams.get('campaign_id');
-    
-    if (sessionId && campaignId) {
-      const processPayment = async () => {
-        try {
-          await processDonationFromStripe(sessionId);
-          
-          // Clear URL params
-          navigate(`/campaigns/${campaignId}`, { replace: true });
-          
-          // Invalidate queries to refresh data
-          queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
-          queryClient.invalidateQueries({ queryKey: ['donations', campaignId] });
-          
-          toast({
-            title: "Donation successful!",
-            description: "Thank you for your generosity.",
-            variant: "default",
-          });
-        } catch (error) {
-          toast({
-            title: "Error processing donation",
-            description: error.message,
-            variant: "destructive",
-          });
-        }
-      };
-      
-      processPayment();
-    }
-  }, [searchParams, navigate, queryClient, toast]);
+  const { user } = useAuth();
   
-  const { data: campaign, isLoading: campaignLoading, error: campaignError } = useQuery({
+  const [donationAmount, setDonationAmount] = useState(50);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [withdrawalSheetOpen, setWithdrawalSheetOpen] = useState(false);
+  
+  const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ['campaign', id],
-    queryFn: () => id ? getCampaignById(id) : Promise.reject('No campaign ID'),
+    queryFn: () => getCampaignById(id as string),
     enabled: !!id
   });
   
   const { data: donations, isLoading: donationsLoading } = useQuery({
     queryKey: ['donations', id],
-    queryFn: () => id ? getDonationsByCampaign(id) : Promise.reject('No campaign ID'),
+    queryFn: () => getDonationsByCampaign(id as string),
     enabled: !!id
   });
-
-  const handleDonate = async () => {
-    if (!id) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      const donorInfo = user ? { userId: user.id } : undefined;
-      
-      const { url } = await createStripeCheckoutSession(
-        id, 
-        donationAmount, 
-        donationMessage, 
-        isAnonymous, 
-        donorInfo
-      );
-      
-      // Redirect to Stripe Checkout
-      window.location.href = url;
-    } catch (error) {
-      toast({
-        title: "Error creating checkout",
-        description: error.message,
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    }
-  };
+  
+  const { data: withdrawalRequests, isLoading: withdrawalRequestsLoading } = useQuery({
+    queryKey: ['withdrawalRequests', id],
+    queryFn: () => getWithdrawalRequestsByCampaign(id as string),
+    enabled: !!id
+  });
+  
+  const isOwner = user?.id === campaign?.user_id;
   
   if (campaignLoading) {
     return (
@@ -127,8 +62,8 @@ const CampaignPage = () => {
       </div>
     );
   }
-
-  if (campaignError || !campaign) {
+  
+  if (!campaign) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navigation />
@@ -139,235 +74,274 @@ const CampaignPage = () => {
       </div>
     );
   }
-
-  const calculateDaysLeft = () => {
-    const expiry = new Date(campaign.expires_at).getTime();
-    const now = new Date().getTime();
-    const diff = expiry - now;
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
+  
   const progressPercentage = Math.min(
     Math.round((campaign.raised_amount / campaign.target_amount) * 100),
     100
   );
-
-  const daysLeft = calculateDaysLeft();
   
+  const daysLeft = calculateDaysLeft(campaign.expires_at);
+  const isCampaignActive = daysLeft > 0;
+  
+  const handleDonateClick = async () => {
+    if (!user) {
+      navigate('/auth', { state: { from: `/campaigns/${id}` } });
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      const { url } = await createStripeCheckoutSession(
+        campaign.id,
+        donationAmount,
+        "",
+        false,
+        { userId: user.id }
+      );
+      
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleWithdrawalSuccess = () => {
+    setWithdrawalSheetOpen(false);
+    queryClient.invalidateQueries({
+      queryKey: ['withdrawalRequests', id]
+    });
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
       
       <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Campaign Details */}
-          <div className="lg:col-span-2">
-            <div className="mb-4 flex items-center gap-2">
-              <Badge variant="outline" className="bg-blue-50">
-                {campaign.category}
-              </Badge>
-              {campaign.is_urgent && (
-                <Badge className="bg-red-500 hover:bg-red-600">URGENT</Badge>
-              )}
-              {campaign.is_verified && (
-                <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3" /> Verified
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2">
+              <div className="flex flex-wrap gap-2 items-center">
+                <Badge variant="outline" className="bg-blue-50">
+                  {campaign.category}
                 </Badge>
+                
+                {campaign.is_urgent && (
+                  <Badge className="bg-red-500 hover:bg-red-600">URGENT</Badge>
+                )}
+                
+                {campaign.is_verified && (
+                  <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" /> Verified
+                  </Badge>
+                )}
+              </div>
+              
+              {isOwner && (
+                <div className="flex gap-2 mt-2 md:mt-0">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => navigate(`/edit-campaign/${campaign.id}`)}
+                  >
+                    Edit Campaign
+                  </Button>
+                  
+                  <Sheet 
+                    open={withdrawalSheetOpen} 
+                    onOpenChange={setWithdrawalSheetOpen}
+                  >
+                    <SheetTrigger asChild>
+                      <Button>Withdraw Funds</Button>
+                    </SheetTrigger>
+                    <SheetContent className="w-full md:max-w-md overflow-y-auto">
+                      <SheetHeader>
+                        <SheetTitle>Withdraw Campaign Funds</SheetTitle>
+                        <SheetDescription>
+                          Request to withdraw funds from your campaign. Your request will be reviewed by our team.
+                        </SheetDescription>
+                      </SheetHeader>
+                      <div className="py-6">
+                        <WithdrawalRequestForm 
+                          campaign={campaign}
+                          userId={user!.id}
+                          onSuccess={handleWithdrawalSuccess}
+                        />
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               )}
             </div>
             
-            <h1 className="text-3xl font-bold mb-4">{campaign.title}</h1>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">{campaign.title}</h1>
             
-            <div className="relative w-full h-80 mb-6">
-              <img
-                src={campaign.image_url || 'https://placehold.co/800x400?text=Campaign+Image'}
+            <div className="aspect-video w-full mb-6">
+              <img 
+                src={campaign.image_url || 'https://placehold.co/1200x600?text=Campaign+Image'} 
                 alt={campaign.title}
                 className="w-full h-full object-cover rounded-lg"
               />
             </div>
             
-            <div className="flex items-center justify-between text-gray-500 mb-6">
-              <div className="flex items-center">
-                <Calendar className="h-4 w-4 mr-2" />
-                <span>Created on {formatDate(campaign.created_at)}</span>
-              </div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-2" />
-                {daysLeft > 0 ? (
-                  <span>{daysLeft} days left</span>
-                ) : (
-                  <span className="text-red-500">Campaign ended</span>
-                )}
-              </div>
-            </div>
-            
-            <h2 className="text-xl font-semibold mb-4">About this campaign</h2>
-            <div className="prose max-w-none mb-8">
-              <p className="whitespace-pre-line">{campaign.description}</p>
-            </div>
-          </div>
-          
-          {/* Donation Card */}
-          <div>
-            <Card className="sticky top-8">
-              <CardContent className="pt-6">
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium text-lg">
-                      {formatCurrency(campaign.raised_amount)}
-                    </span>
-                    <span className="text-gray-500">
-                      of {formatCurrency(campaign.target_amount)} goal
-                    </span>
-                  </div>
-                  <Progress value={progressPercentage} className="h-2" />
-                  <div className="mt-2 text-sm text-gray-500 flex justify-between">
-                    <span>{progressPercentage}% funded</span>
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      <span>{campaign.donors_count} donors</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button 
-                      className="w-full mb-4 bg-blue-500 hover:bg-blue-600"
-                    >
-                      Donate Now
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Make a Donation</DialogTitle>
-                      <DialogDescription>
-                        Your support means a lot. Enter the amount you wish to donate.
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="amount">Donation Amount ($)</Label>
-                        <Input
-                          id="amount"
-                          type="number"
-                          min="1"
-                          value={donationAmount}
-                          onChange={(e) => setDonationAmount(parseInt(e.target.value))}
-                          placeholder="25"
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="message">Message (Optional)</Label>
-                        <Textarea
-                          id="message"
-                          value={donationMessage}
-                          onChange={(e) => setDonationMessage(e.target.value)}
-                          placeholder="Add a message of support..."
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="anonymous"
-                          checked={isAnonymous}
-                          onCheckedChange={(checked) => 
-                            setIsAnonymous(checked === true)
-                          }
-                        />
-                        <label
-                          htmlFor="anonymous"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Donate anonymously
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="outline">Cancel</Button>
-                      </DialogClose>
-                      <Button 
-                        onClick={handleDonate} 
-                        disabled={!donationAmount || donationAmount <= 0 || isProcessing}
-                      >
-                        {isProcessing ? "Processing..." : "Continue to Payment"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                
-                {!user && (
-                  <p className="text-sm text-center text-gray-500 mb-4">
-                    You need to <a href="/auth" className="text-blue-500 hover:underline">log in</a> to track your donations
-                  </p>
-                )}
-                
-                <div className="text-sm text-gray-500">
-                  <p className="mb-4">
-                    This campaign {daysLeft > 0 ? 'will end' : 'ended'} on {formatDate(campaign.expires_at)}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        
-        {/* Recent Donations */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold mb-6">Recent Donations</h2>
-          {donationsLoading ? (
-            <div className="text-center py-8">Loading donations...</div>
-          ) : donations && donations.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {donations.map((donation: Donation) => (
-                <Card key={donation.id} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="font-medium">
-                        {donation.is_anonymous ? 'Anonymous' : 'Supporter'}
-                      </div>
-                      <div className="font-bold text-blue-600">
-                        {formatCurrency(donation.amount)}
-                      </div>
-                    </div>
-                    {donation.message && (
-                      <p className="text-gray-600 text-sm">{donation.message}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2">
+                <Tabs defaultValue="about" className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="about">About</TabsTrigger>
+                    <TabsTrigger value="updates">Donations</TabsTrigger>
+                    {isOwner && (
+                      <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
                     )}
-                    <div className="text-xs text-gray-500 mt-2">
-                      {formatDate(donation.created_at)}
+                  </TabsList>
+                  
+                  <TabsContent value="about">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Campaign Details</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="whitespace-pre-line">{campaign.description}</p>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
+                  <TabsContent value="updates">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Recent Donations</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {donationsLoading ? (
+                          <div className="text-center py-4">Loading donations...</div>
+                        ) : donations && donations.length > 0 ? (
+                          <div className="space-y-4">
+                            {donations.map((donation: Donation) => (
+                              <div key={donation.id} className="pb-4 border-b last:border-0">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium">
+                                      {donation.is_anonymous ? "Anonymous" : "Supporter"}
+                                    </p>
+                                    {donation.message && (
+                                      <p className="text-gray-600 text-sm mt-1">{donation.message}</p>
+                                    )}
+                                    <p className="text-gray-500 text-xs mt-1">
+                                      {new Date(donation.created_at).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <span className="font-bold text-green-600">
+                                    {formatCurrency(donation.amount)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-gray-500">
+                            No donations yet. Be the first to donate!
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
+                  {isOwner && (
+                    <TabsContent value="withdrawals">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Withdrawal Requests</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <WithdrawalRequestsList 
+                            withdrawalRequests={withdrawalRequests || []}
+                            isLoading={withdrawalRequestsLoading}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  )}
+                </Tabs>
+              </div>
+              
+              <div>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="mb-6">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium flex items-center">
+                          {formatCurrency(campaign.raised_amount)}
+                          <DollarSign className="h-3 w-3 ml-1 text-green-500" />
+                        </span>
+                        <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
+                      </div>
+                      <Progress value={progressPercentage} className="h-2" />
+                      
+                      <div className="flex justify-between mt-2 text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <Users className="h-3 w-3 mr-1" />
+                          <span>{campaign.donors_count} donors</span>
+                        </div>
+                        <span>{progressPercentage}% funded</span>
+                      </div>
                     </div>
+                    
+                    <div className="flex items-center gap-1 text-gray-600 mb-4">
+                      <Clock className="h-4 w-4" />
+                      {isCampaignActive ? (
+                        <span>{daysLeft} days left</span>
+                      ) : (
+                        <span className="text-red-500">Campaign ended</span>
+                      )}
+                    </div>
+                    
+                    {isCampaignActive && (
+                      <>
+                        <div className="mb-6">
+                          <label className="block text-sm font-medium mb-1">
+                            Donation Amount
+                          </label>
+                          <div className="grid grid-cols-3 gap-2 mb-2">
+                            {[10, 50, 100].map((amount) => (
+                              <Button
+                                key={amount}
+                                type="button"
+                                variant={donationAmount === amount ? "default" : "outline"}
+                                onClick={() => setDonationAmount(amount)}
+                              >
+                                ${amount}
+                              </Button>
+                            ))}
+                          </div>
+                          <div className="flex items-center">
+                            <span className="mr-2">$</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={donationAmount}
+                              onChange={(e) => setDonationAmount(parseInt(e.target.value) || 0)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                          </div>
+                        </div>
+                        
+                        <Button
+                          className="w-full flex items-center justify-center gap-2"
+                          size="lg"
+                          onClick={handleDonateClick}
+                          disabled={isProcessing || donationAmount <= 0}
+                        >
+                          <Heart className="h-4 w-4" />
+                          {isProcessing ? "Processing..." : "Donate Now"}
+                        </Button>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No donations yet. Be the first to donate!
-            </div>
-          )}
+          </div>
         </div>
       </main>
       

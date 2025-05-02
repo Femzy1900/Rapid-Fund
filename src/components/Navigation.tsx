@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -13,11 +13,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useQuery } from '@tanstack/react-query';
+import { checkIfUserIsAdmin } from '@/services/withdrawalService';
 
 const Navigation = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Check if user is admin
+  const { data: isAdmin } = useQuery({
+    queryKey: ['isAdmin', user?.id],
+    queryFn: () => user ? checkIfUserIsAdmin(user.id) : Promise.resolve(false),
+    enabled: !!user
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -82,6 +91,11 @@ const Navigation = () => {
                   <DropdownMenuItem asChild>
                     <Link to={`/profile/${user.id}`}>Profile</Link>
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin">Admin Panel</Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     Sign out
@@ -131,6 +145,15 @@ const Navigation = () => {
                         >
                           Profile
                         </Link>
+                        {isAdmin && (
+                          <Link
+                            to="/admin"
+                            className="text-gray-600 hover:text-blue-500 font-medium py-2 block"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                            Admin Panel
+                          </Link>
+                        )}
                         <Button
                           variant="ghost"
                           className="w-full justify-start px-0 py-2 font-medium"

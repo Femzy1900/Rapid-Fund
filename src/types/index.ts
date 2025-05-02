@@ -35,3 +35,23 @@ export type Profile = {
   campaigns_created: number;
   created_at: string;
 };
+
+export type WithdrawalRequest = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  amount: number;
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  updated_at: string;
+  notes?: string;
+  campaign?: {
+    title: string;
+  };
+  profiles?: {
+    full_name?: string;
+  };
+};

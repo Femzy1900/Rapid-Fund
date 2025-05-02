@@ -6,23 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Campaign } from '@/types';
 import { CheckCircle, Clock, Users, DollarSign } from 'lucide-react';
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
-const calculateDaysLeft = (expiresAt: string) => {
-  const expiry = new Date(expiresAt).getTime();
-  const now = new Date().getTime();
-  const diff = expiry - now;
-  const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  return daysLeft;
-};
+import { formatCurrency, calculateDaysLeft } from '@/utils/formatters';
 
 const CampaignCard = ({ campaign }: { campaign: Campaign }) => {
   const progressPercentage = Math.min(
