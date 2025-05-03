@@ -201,6 +201,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      increment_campaign_raised_amount: {
+        Args: { campaign_id: string; amount: number }
+        Returns: undefined
+      }
       increment_user_campaign_count: {
         Args: { user_id: string }
         Returns: undefined
