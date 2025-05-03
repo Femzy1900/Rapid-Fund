@@ -20,6 +20,7 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { Campaign } from '@/types';
+import ImageUpload from '@/components/ImageUpload';
 
 const categories = [
   'Medical',
@@ -143,16 +144,10 @@ const CreateCampaignPage = () => {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="imageUrl">Image URL</Label>
-                <Input
-                  id="imageUrl"
-                  placeholder="https://example.com/image.jpg"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                />
-                <p className="text-sm text-gray-500">A compelling image can help your campaign get more attention</p>
-              </div>
+              <ImageUpload 
+                onImageUploaded={setImageUrl}
+                existingImageUrl={imageUrl}
+              />
               
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>

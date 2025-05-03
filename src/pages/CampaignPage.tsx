@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +5,7 @@ import { getCampaignById } from '@/services/campaignService';
 import { getDonationsByCampaign } from '@/services/donationService';
 import { getWithdrawalRequestsByCampaign } from '@/services/withdrawalService';
 import { getCryptoDonationsByCampaign, getCryptoWithdrawalsByCampaign } from '@/services/cryptoService';
+import { getCommentsByCampaign } from '@/services/commentService';
 import { useAuth } from '@/context/AuthContext';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { CheckCircle, Clock, DollarSign, Users, Heart, Share2, Wallet } from 'lucide-react';
+import { CheckCircle, Clock, DollarSign, Users, Heart, Share2, Wallet, MessageCircle } from 'lucide-react';
 import { formatCurrency, calculateDaysLeft } from '@/utils/formatters';
 import WithdrawalRequestForm from '@/components/WithdrawalRequestForm';
 import WithdrawalRequestsList from '@/components/WithdrawalRequestsList';
@@ -23,6 +23,8 @@ import CryptoDonationForm from '@/components/CryptoDonationForm';
 import CryptoWithdrawalForm from '@/components/CryptoWithdrawalForm';
 import CryptoDonationsList from '@/components/CryptoDonationsList';
 import CryptoWithdrawalsList from '@/components/CryptoWithdrawalsList';
+import CommentsList from '@/components/CommentsList';
+import AddCommentForm from '@/components/AddCommentForm';
 import { Donation } from '@/types';
 import { createStripeCheckoutSession } from '@/services/donationService';
 import { toast } from '@/components/ui/sonner';
@@ -69,6 +71,12 @@ const CampaignPage = () => {
   const { data: cryptoWithdrawals, isLoading: cryptoWithdrawalsLoading } = useQuery({
     queryKey: ['cryptoWithdrawals', id],
     queryFn: () => getCryptoWithdrawalsByCampaign(id as string),
+    enabled: !!id
+  });
+  
+  const { data: comments, isLoading: commentsLoading } = useQuery({
+    queryKey: ['comments', id],
+    queryFn: () => getCommentsByCampaign(id as string),
     enabled: !!id
   });
   
@@ -130,12 +138,30 @@ const CampaignPage = () => {
         }
       )
       .subscribe();
+      
+    // Subscribe to comments table updates
+    const commentsChannel = supabase
+      .channel('comment-updates')
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+          filter: `campaign_id=eq.${id}`
+        },
+        () => {
+          // Invalidate and refetch comments data
+          queryClient.invalidateQueries({ queryKey: ['comments', id] });
+        }
+      )
+      .subscribe();
     
     // Clean up subscriptions on unmount
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(donationsChannel);
       supabase.removeChannel(cryptoDonationsChannel);
+      supabase.removeChannel(commentsChannel);
     };
   }, [id, queryClient]);
   
@@ -375,6 +401,9 @@ const CampaignPage = () => {
                     <TabsTrigger value="about">About</TabsTrigger>
                     <TabsTrigger value="updates">Donations</TabsTrigger>
                     <TabsTrigger value="crypto">Crypto</TabsTrigger>
+                    <TabsTrigger value="comments">
+                      Comments {comments?.length ? `(${comments.length})` : ''}
+                    </TabsTrigger>
                     {isOwner && (
                       <>
                         <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
@@ -458,6 +487,30 @@ const CampaignPage = () => {
                           donations={cryptoDonations || []}
                           isLoading={cryptoDonationsLoading}
                         />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
+                  <TabsContent value="comments">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <MessageCircle className="h-5 w-5 mr-2" /> Comments & Support
+                        </CardTitle>
+                        <CardDescription>
+                          Leave a message of support for this campaign
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <AddCommentForm campaignId={id as string} />
+                        
+                        <div className="pt-4 border-t">
+                          <CommentsList 
+                            comments={comments || []} 
+                            campaignId={id as string}
+                            isLoading={commentsLoading} 
+                          />
+                        </div>
                       </CardContent>
                     </Card>
                   </TabsContent>

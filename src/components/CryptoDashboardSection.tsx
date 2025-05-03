@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCryptoWithdrawalsByUser } from '@/services/cryptoService';
+import { getUserCryptoWithdrawals } from '@/services/cryptoService';
 import { CryptoWithdrawal } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ interface CryptoDashboardSectionProps {
 const CryptoDashboardSection = ({ userId }: CryptoDashboardSectionProps) => {
   const { data: cryptoWithdrawals, isLoading } = useQuery({
     queryKey: ['cryptoWithdrawals', userId],
-    queryFn: () => getCryptoWithdrawalsByUser(userId),
+    queryFn: () => getUserCryptoWithdrawals(userId),
   });
 
   const getStatusColor = (status: string) => {
