@@ -48,6 +48,8 @@ const AdminPage = () => {
     queryFn: getAllWithdrawalRequests,
     enabled: !!isAdmin
   });
+
+  console.log('Withdrawal Requests:', withdrawalRequests);
   
   React.useEffect(() => {
     // Redirect if not authenticated
@@ -215,7 +217,7 @@ const AdminPage = () => {
               <h3 className="font-medium">Request Details</h3>
               {selectedRequest && (
                 <>
-                  <p className="text-sm text-gray-600 mt-1">Campaign: {selectedRequest.campaign?.title}</p>
+                  <p className="text-sm text-gray-600 mt-1">Campaign: {selectedRequest.campaign_id.title}</p>
                   <p className="text-sm text-gray-600">Amount: {formatCurrency(selectedRequest.amount)}</p>
                   <p className="text-sm text-gray-600">Requested by: {selectedRequest.profiles?.full_name || 'Unknown'}</p>
                 </>
@@ -265,7 +267,7 @@ const WithdrawalRequestCard = ({ request, onApprove, onReject, isProcessed = fal
           <div className="flex-grow">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-medium">
-                {request.campaign?.title || 'Campaign'}
+                {request.campaign_id.title || 'Campaign'}
               </h3>
               <Badge className={
                 request.status === 'approved' ? 'bg-green-500' :

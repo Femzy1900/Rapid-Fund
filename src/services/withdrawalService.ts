@@ -59,8 +59,9 @@ export const getAllWithdrawalRequests = async () => {
     .from('withdrawal_requests')
     .select(`
       *,
-      campaigns:campaign_id (title), 
-      profiles:user_id (full_name)
+      campaign_id(title),
+      user_id,
+      profiles:user_id (full_name) 
     `)
     .order('created_at', { ascending: false });
 
@@ -82,7 +83,7 @@ export const updateWithdrawalRequestStatus = async (id: string, status: 'approve
       notes,
       updated_at: new Date().toISOString() 
     })
-    .eq('id', id)
+    .eq('user_id', id)
     .select()
     .single();
   
