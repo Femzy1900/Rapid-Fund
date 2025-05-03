@@ -35,7 +35,7 @@ const CampaignPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  
+
   const [donationAmount, setDonationAmount] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [withdrawalSheetOpen, setWithdrawalSheetOpen] = useState(false);
@@ -43,79 +43,92 @@ const CampaignPage = () => {
   const [cryptoDonationSheetOpen, setCryptoDonationSheetOpen] = useState(false);
   const [donationTab, setDonationTab] = useState('fiat');
   const [shareTooltip, setShareTooltip] = useState('Copy link');
-  
+
   const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ['campaign', id],
     queryFn: () => getCampaignById(id as string),
     enabled: !!id
   });
-  
+
   const { data: donations, isLoading: donationsLoading } = useQuery({
     queryKey: ['donations', id],
     queryFn: () => getDonationsByCampaign(id as string),
     enabled: !!id
   });
-  
+
   const { data: cryptoDonations, isLoading: cryptoDonationsLoading } = useQuery({
     queryKey: ['cryptoDonations', id],
     queryFn: () => getCryptoDonationsByCampaign(id as string),
     enabled: !!id
   });
-  
+
   const { data: withdrawalRequests, isLoading: withdrawalRequestsLoading } = useQuery({
     queryKey: ['withdrawalRequests', id],
     queryFn: () => getWithdrawalRequestsByCampaign(id as string),
     enabled: !!id
   });
-  
+
   const { data: cryptoWithdrawals, isLoading: cryptoWithdrawalsLoading } = useQuery({
     queryKey: ['cryptoWithdrawals', id],
     queryFn: () => getCryptoWithdrawalsByCampaign(id as string),
     enabled: !!id
   });
-  
+
   const { data: comments, isLoading: commentsLoading } = useQuery({
     queryKey: ['comments', id],
     queryFn: () => getCommentsByCampaign(id as string),
     enabled: !!id
   });
 
-  const {data: campaignDonation} = useQuery({ 
-      queryKey: ['donations', user?.id],
-      queryFn: () => user ? getDonationsByCampaign(campaign.id) : Promise.reject('Not authenticated'),
-      enabled: !!user
+  const { data: campaignDonation } = useQuery({
+    queryKey: ['donations', user?.id],
+    queryFn: () => user ? getDonationsByCampaign(campaign.id) : Promise.reject('Not authenticated'),
+    enabled: !!user
   });
-  
-  console.log("campaing Donation",campaignDonation);
-  // Calculate total donations and donors  
-    const totalRaised = campaignDonation?.reduce((sum: number, donation: Donation) => 
-      sum + (donation.amount || 0), 0) || 0;
-    const totalDonors = campaignDonation?.length || 0;
 
-    console.log("Total Raised:", totalRaised);
-    console.log("Total Donors:", totalDonors);
-  
+  console.log("campaing Donation", campaignDonation);
+  // Calculate total donations and donors  
+  const totalRaised = campaignDonation?.reduce((sum: number, donation: Donation) =>
+    sum + (donation.amount || 0), 0) || 0;
+  const totalDonors = campaignDonation?.length || 0;
+
+  // Update campaign.raised_amount with totalRaised
+  const updateRaisedAmount = async () => {
+    if (campaign) {
+      campaign.raised_amount = totalRaised;
+      await supabase
+        .from('campaigns')
+        .update({ raised_amount: totalRaised, donors_count: totalDonors })
+        .eq('id', campaign.id);
+    }
+  };
+
+  updateRaisedAmount();
+
+ 
+
   // Setup real-time subscription for campaign updates
   useEffect(() => {
     if (!id) return;
-    
+
+
     // Subscribe to campaigns table updates
     const channel = supabase
       .channel('campaign-updates')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
           table: 'campaigns',
           filter: `id=eq.${id}`
-        }, 
+        },
         (payload) => {
           // Invalidate and refetch campaign data
           queryClient.invalidateQueries({ queryKey: ['campaign', id] });
         }
       )
       .subscribe();
-      
+
     // Subscribe to donations table updates
     const donationsChannel = supabase
       .channel('donation-updates')
@@ -134,7 +147,7 @@ const CampaignPage = () => {
         }
       )
       .subscribe();
-      
+
     // Subscribe to crypto donations table updates
     const cryptoDonationsChannel = supabase
       .channel('crypto-donation-updates')
@@ -153,7 +166,7 @@ const CampaignPage = () => {
         }
       )
       .subscribe();
-      
+
     // Subscribe to comments table updates
     const commentsChannel = supabase
       .channel('comment-updates')
@@ -170,7 +183,7 @@ const CampaignPage = () => {
         }
       )
       .subscribe();
-    
+
     // Clean up subscriptions on unmount
     return () => {
       supabase.removeChannel(channel);
@@ -179,9 +192,9 @@ const CampaignPage = () => {
       supabase.removeChannel(commentsChannel);
     };
   }, [id, queryClient]);
-  
+
   const isOwner = user?.id === campaign?.user_id;
-  
+
   if (campaignLoading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -193,7 +206,7 @@ const CampaignPage = () => {
       </div>
     );
   }
-  
+
   if (!campaign) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -205,23 +218,23 @@ const CampaignPage = () => {
       </div>
     );
   }
-  
+
   const progressPercentage = Math.min(
-    Math.round((totalRaised/ campaign.target_amount) * 100),
+    Math.round((campaign.raised_amount / campaign.target_amount) * 100),
     100
   );
-  
+
   const daysLeft = calculateDaysLeft(campaign.expires_at);
   const isCampaignActive = daysLeft > 0;
-  
+
   const handleDonateClick = async () => {
     if (!user) {
       navigate('/auth', { state: { from: `/campaigns/${id}` } });
       return;
     }
-    
+
     setIsProcessing(true);
-    
+
     try {
       const { url } = await createStripeCheckoutSession(
         campaign.id,
@@ -230,7 +243,7 @@ const CampaignPage = () => {
         false,
         { userId: user.id }
       );
-      
+
       window.location.href = url;
     } catch (error) {
       console.error('Error creating checkout session:', error);
@@ -239,21 +252,21 @@ const CampaignPage = () => {
       setIsProcessing(false);
     }
   };
-  
+
   const handleWithdrawalSuccess = () => {
     setWithdrawalSheetOpen(false);
     queryClient.invalidateQueries({
       queryKey: ['withdrawalRequests', id]
     });
   };
-  
+
   const handleCryptoWithdrawalSuccess = () => {
     setCryptoWithdrawalSheetOpen(false);
     queryClient.invalidateQueries({
       queryKey: ['cryptoWithdrawals', id]
     });
   };
-  
+
   const handleCryptoDonationSuccess = () => {
     setCryptoDonationSheetOpen(false);
     queryClient.invalidateQueries({
@@ -263,25 +276,25 @@ const CampaignPage = () => {
       queryKey: ['campaign', id]
     });
   };
-  
+
   const handleShareCampaign = () => {
     const url = window.location.href;
-    
+
     if (navigator.share) {
       navigator.share({
         title: campaign.title,
         text: `Check out this campaign: ${campaign.title}`,
         url: url,
       })
-      .catch((error) => {
-        console.error('Error sharing:', error);
-        fallbackShare(url);
-      });
+        .catch((error) => {
+          console.error('Error sharing:', error);
+          fallbackShare(url);
+        });
     } else {
       fallbackShare(url);
     }
   };
-  
+
   const fallbackShare = (url: string) => {
     navigator.clipboard.writeText(url)
       .then(() => {
@@ -300,7 +313,7 @@ const CampaignPage = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
-      
+
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-5xl mx-auto">
           <div className="mb-6">
@@ -309,18 +322,18 @@ const CampaignPage = () => {
                 <Badge variant="outline" className="bg-blue-50">
                   {campaign.category}
                 </Badge>
-                
+
                 {campaign.is_urgent && (
                   <Badge className="bg-red-500 hover:bg-red-600">URGENT</Badge>
                 )}
-                
+
                 {campaign.is_verified && (
                   <Badge className="bg-green-500 hover:bg-green-600 flex items-center gap-1">
                     <CheckCircle className="h-3 w-3" /> Verified
                   </Badge>
                 )}
               </div>
-              
+
               <div className="flex gap-2 mt-2 md:mt-0">
                 <Button
                   variant="outline"
@@ -335,18 +348,18 @@ const CampaignPage = () => {
                     {shareTooltip}
                   </span>
                 </Button>
-                
+
                 {isOwner && (
                   <>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => navigate(`/edit-campaign/${campaign.id}`)}
                     >
                       Edit Campaign
                     </Button>
-                    
-                    <Sheet 
-                      open={withdrawalSheetOpen} 
+
+                    <Sheet
+                      open={withdrawalSheetOpen}
                       onOpenChange={setWithdrawalSheetOpen}
                     >
                       <SheetTrigger asChild>
@@ -360,7 +373,7 @@ const CampaignPage = () => {
                           </SheetDescription>
                         </SheetHeader>
                         <div className="py-6">
-                          <WithdrawalRequestForm 
+                          <WithdrawalRequestForm
                             campaign={campaign}
                             userId={user!.id}
                             onSuccess={handleWithdrawalSuccess}
@@ -368,9 +381,9 @@ const CampaignPage = () => {
                         </div>
                       </SheetContent>
                     </Sheet>
-                    
-                    <Sheet 
-                      open={cryptoWithdrawalSheetOpen} 
+
+                    <Sheet
+                      open={cryptoWithdrawalSheetOpen}
                       onOpenChange={setCryptoWithdrawalSheetOpen}
                     >
                       <SheetTrigger asChild>
@@ -386,7 +399,7 @@ const CampaignPage = () => {
                           </SheetDescription>
                         </SheetHeader>
                         <div className="py-6">
-                          <CryptoWithdrawalForm 
+                          <CryptoWithdrawalForm
                             campaignId={campaign.id}
                             userId={user!.id}
                             onSuccess={handleCryptoWithdrawalSuccess}
@@ -398,17 +411,17 @@ const CampaignPage = () => {
                 )}
               </div>
             </div>
-            
+
             <h1 className="text-3xl md:text-4xl font-bold mb-2">{campaign.title}</h1>
-            
+
             <div className="aspect-video w-full mb-6">
-              <img 
-                src={campaign.image_url || 'https://placehold.co/1200x600?text=Campaign+Image'} 
+              <img
+                src={campaign.image_url || 'https://placehold.co/1200x600?text=Campaign+Image'}
                 alt={campaign.title}
                 className="w-full h-full object-cover rounded-lg"
               />
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-2">
                 <Tabs defaultValue="about" className="w-full">
@@ -426,7 +439,7 @@ const CampaignPage = () => {
                       </>
                     )}
                   </TabsList>
-                  
+
                   <TabsContent value="about">
                     <Card>
                       <CardHeader>
@@ -440,18 +453,18 @@ const CampaignPage = () => {
                           </div>
                           <div className="bg-green-50 p-4 rounded-lg">
                             <p className="text-sm text-gray-500 mb-1">Raised</p>
-                            <p className="text-xl font-bold text-green-700">{formatCurrency(totalRaised)}</p>
+                            <p className="text-xl font-bold text-green-700">{formatCurrency(campaign.raised_amount)}</p>
                           </div>
                           <div className="bg-purple-50 p-4 rounded-lg">
                             <p className="text-sm text-gray-500 mb-1">Donors</p>
-                            <p className="text-xl font-bold text-purple-700">{totalDonors}</p>
+                            <p className="text-xl font-bold text-purple-700">{campaign.donors_count}</p>
                           </div>
                         </div>
                         <p className="whitespace-pre-line">{campaign.description}</p>
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   <TabsContent value="updates">
                     <Card>
                       <CardHeader>
@@ -491,21 +504,21 @@ const CampaignPage = () => {
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   <TabsContent value="crypto">
                     <Card>
                       <CardHeader>
                         <CardTitle>Cryptocurrency Donations</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <CryptoDonationsList 
+                        <CryptoDonationsList
                           donations={cryptoDonations || []}
                           isLoading={cryptoDonationsLoading}
                         />
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   <TabsContent value="comments">
                     <Card>
                       <CardHeader>
@@ -518,18 +531,18 @@ const CampaignPage = () => {
                       </CardHeader>
                       <CardContent className="space-y-6">
                         <AddCommentForm campaignId={id as string} />
-                        
+
                         <div className="pt-4 border-t">
-                          <CommentsList 
-                            comments={comments || []} 
+                          <CommentsList
+                            comments={comments || []}
                             campaignId={id as string}
-                            isLoading={commentsLoading} 
+                            isLoading={commentsLoading}
                           />
                         </div>
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                   {isOwner && (
                     <TabsContent value="withdrawals">
                       <Card>
@@ -537,7 +550,7 @@ const CampaignPage = () => {
                           <CardTitle>Withdrawal Requests</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <WithdrawalRequestsList 
+                          <WithdrawalRequestsList
                             withdrawalRequests={withdrawalRequests || []}
                             isLoading={withdrawalRequestsLoading}
                           />
@@ -545,7 +558,7 @@ const CampaignPage = () => {
                       </Card>
                     </TabsContent>
                   )}
-                  
+
                   {isOwner && (
                     <TabsContent value="crypto-withdrawals">
                       <Card>
@@ -553,7 +566,7 @@ const CampaignPage = () => {
                           <CardTitle>Crypto Withdrawal Requests</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <CryptoWithdrawalsList 
+                          <CryptoWithdrawalsList
                             withdrawals={cryptoWithdrawals || []}
                             isLoading={cryptoWithdrawalsLoading}
                           />
@@ -563,29 +576,29 @@ const CampaignPage = () => {
                   )}
                 </Tabs>
               </div>
-              
+
               <div>
                 <Card>
                   <CardContent className="pt-6">
                     <div className="mb-6">
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium flex items-center">
-                          {formatCurrency(totalRaised)}
+                          {formatCurrency(campaign.raised_amount)}
                           <DollarSign className="h-3 w-3 ml-1 text-green-500" />
                         </span>
                         <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
                       </div>
                       <Progress value={progressPercentage} className="h-2" />
-                      
+
                       <div className="flex justify-between mt-2 text-sm text-gray-600">
                         <div className="flex items-center">
                           <Users className="h-3 w-3 mr-1" />
-                          <span>{totalDonors} donors</span>
+                          <span>{campaign.donors_count} donors</span>
                         </div>
                         <span>{progressPercentage}% funded</span>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-1 text-gray-600 mb-4">
                       <Clock className="h-4 w-4" />
                       {isCampaignActive ? (
@@ -594,7 +607,7 @@ const CampaignPage = () => {
                         <span className="text-red-500">Campaign ended</span>
                       )}
                     </div>
-                    
+
                     {isCampaignActive && (
                       <>
                         <Tabs value={donationTab} onValueChange={setDonationTab} className="mb-4">
@@ -603,7 +616,7 @@ const CampaignPage = () => {
                             <TabsTrigger value="crypto">Crypto</TabsTrigger>
                           </TabsList>
                         </Tabs>
-                        
+
                         {donationTab === 'fiat' ? (
                           <>
                             <div className="mb-6">
@@ -633,7 +646,7 @@ const CampaignPage = () => {
                                 />
                               </div>
                             </div>
-                            
+
                             <Button
                               className="w-full flex items-center justify-center gap-2"
                               size="lg"
@@ -645,8 +658,8 @@ const CampaignPage = () => {
                             </Button>
                           </>
                         ) : (
-                          <Sheet 
-                            open={cryptoDonationSheetOpen} 
+                          <Sheet
+                            open={cryptoDonationSheetOpen}
                             onOpenChange={setCryptoDonationSheetOpen}
                           >
                             <SheetTrigger asChild>
@@ -666,7 +679,7 @@ const CampaignPage = () => {
                                 </SheetDescription>
                               </SheetHeader>
                               <div className="py-6">
-                                <CryptoDonationForm 
+                                <CryptoDonationForm
                                   campaignId={campaign.id}
                                   onSuccess={handleCryptoDonationSuccess}
                                 />
@@ -683,7 +696,7 @@ const CampaignPage = () => {
           </div>
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

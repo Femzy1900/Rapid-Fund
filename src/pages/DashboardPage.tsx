@@ -45,7 +45,9 @@ const DashboardPage = () => {
     queryFn: () => user ? getProfile(user.id) : Promise.reject('Not authenticated'),
     enabled: !!user
   });
-  
+
+
+
   const { data: userCampaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['userCampaigns', user?.id],
     queryFn: () => getCampaigns({ userId: user?.id }),
@@ -93,6 +95,16 @@ const DashboardPage = () => {
   
   const totalRaised = userDonations?.reduce((sum: number, donation: Donation) => 
     sum + (donation.amount || 0), 0) || 0;
+
+   // Calculate total donations and donors for each campaign
+  const totalRaisedByCampaign = campaignDonation?.reduce((sum: number, donation: Donation) => 
+        sum + (donation.amount || 0), 0) || 0;
+
+  const totalDonorsCampaign = campaignDonation?.length || 0;
+  
+  
+
+    
   
   return (
     <div className="min-h-screen flex flex-col">
