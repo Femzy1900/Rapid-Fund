@@ -3,7 +3,6 @@ import React from 'react';
 import { CryptoDonation } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/formatters';
-import { getTokenUSDPrice } from '@/services/cryptoService';
 
 interface CryptoDonationsListProps {
   donations: CryptoDonation[];

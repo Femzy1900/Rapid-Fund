@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCampaignById } from '@/services/campaignService';
@@ -26,6 +26,7 @@ import CryptoWithdrawalsList from '@/components/CryptoWithdrawalsList';
 import { Donation } from '@/types';
 import { createStripeCheckoutSession } from '@/services/donationService';
 import { toast } from '@/components/ui/sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const CampaignPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +40,7 @@ const CampaignPage = () => {
   const [cryptoWithdrawalSheetOpen, setCryptoWithdrawalSheetOpen] = useState(false);
   const [cryptoDonationSheetOpen, setCryptoDonationSheetOpen] = useState(false);
   const [donationTab, setDonationTab] = useState('fiat');
+  const [shareTooltip, setShareTooltip] = useState('Copy link');
   
   const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ['campaign', id],
@@ -69,6 +71,73 @@ const CampaignPage = () => {
     queryFn: () => getCryptoWithdrawalsByCampaign(id as string),
     enabled: !!id
   });
+  
+  // Setup real-time subscription for campaign updates
+  useEffect(() => {
+    if (!id) return;
+    
+    // Subscribe to campaigns table updates
+    const channel = supabase
+      .channel('campaign-updates')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'campaigns',
+          filter: `id=eq.${id}`
+        }, 
+        (payload) => {
+          // Invalidate and refetch campaign data
+          queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to donations table updates
+    const donationsChannel = supabase
+      .channel('donation-updates')
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'donations',
+          filter: `campaign_id=eq.${id}`
+        },
+        () => {
+          // Invalidate and refetch donations data
+          queryClient.invalidateQueries({ queryKey: ['donations', id] });
+          // Also refetch the campaign to update stats
+          queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to crypto donations table updates
+    const cryptoDonationsChannel = supabase
+      .channel('crypto-donation-updates')
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'crypto_donations',
+          filter: `campaign_id=eq.${id}`
+        },
+        () => {
+          // Invalidate and refetch crypto donations data
+          queryClient.invalidateQueries({ queryKey: ['cryptoDonations', id] });
+          // Also refetch the campaign to update stats
+          queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+        }
+      )
+      .subscribe();
+    
+    // Clean up subscriptions on unmount
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(donationsChannel);
+      supabase.removeChannel(cryptoDonationsChannel);
+    };
+  }, [id, queryClient]);
   
   const isOwner = user?.id === campaign?.user_id;
   
@@ -176,6 +245,10 @@ const CampaignPage = () => {
     navigator.clipboard.writeText(url)
       .then(() => {
         toast.success('Campaign link copied to clipboard!');
+        setShareTooltip('Copied!');
+        setTimeout(() => {
+          setShareTooltip('Copy link');
+        }, 2000);
       })
       .catch((error) => {
         console.error('Failed to copy:', error);
@@ -212,8 +285,14 @@ const CampaignPage = () => {
                   variant="outline"
                   size="sm"
                   onClick={handleShareCampaign}
+                  className="group relative"
+                  aria-label="Share campaign"
+                  title={shareTooltip}
                 >
                   <Share2 className="h-4 w-4 mr-2" /> Share
+                  <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {shareTooltip}
+                  </span>
                 </Button>
                 
                 {isOwner && (

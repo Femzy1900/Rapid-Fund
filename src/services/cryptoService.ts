@@ -1,305 +1,281 @@
 
-import { ethers } from 'ethers';
 import { supabase } from '@/integrations/supabase/client';
 import { CryptoDonation, CryptoWithdrawal } from '@/types';
+import { ethers } from 'ethers';
 import { toast } from '@/components/ui/sonner';
 
-// ERC-20 Token ABI snippet (only for token transfers)
-const minimalERC20ABI = [
-  {
-    constant: false,
-    inputs: [
-      { name: "_to", type: "address" },
-      { name: "_value", type: "uint256" }
-    ],
-    name: "transfer",
-    outputs: [{ name: "", type: "bool" }],
-    type: "function"
-  },
-  {
-    constant: true,
-    inputs: [{ name: "_owner", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "balance", type: "uint256" }],
-    type: "function"
-  },
-  {
-    constant: true,
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    type: "function"
-  }
+// Token addresses (Ethereum mainnet)
+const TOKEN_ADDRESSES = {
+  USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+};
+
+// ABI for ERC20 tokens (minimal interface)
+const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+  'function decimals() view returns (uint8)',
+  'function transfer(address to, uint256 amount) returns (boolean)',
+  'function approve(address spender, uint256 amount) returns (boolean)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'event Transfer(address indexed from, address indexed to, uint256 amount)',
 ];
 
-// Common token addresses (for Ethereum mainnet)
-export const SUPPORTED_TOKENS = {
-  ETH: {
-    symbol: 'ETH',
-    name: 'Ethereum',
-    address: null, // Native ETH
-    decimals: 18,
-    logoUrl: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-  },
-  USDC: {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Ethereum mainnet USDC
-    decimals: 6,
-    logoUrl: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png',
-  },
-  USDT: {
-    symbol: 'USDT',
-    name: 'Tether USD',
-    address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // Ethereum mainnet USDT
-    decimals: 6,
-    logoUrl: 'https://cryptologos.cc/logos/tether-usdt-logo.png',
+export const getMetaMaskProvider = async () => {
+  if (!window.ethereum) {
+    throw new Error('MetaMask is not installed. Please install MetaMask to continue.');
   }
+  
+  await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  return provider;
 };
 
-// Check if MetaMask is available
-export const isMetaMaskAvailable = (): boolean => {
-  return typeof window !== 'undefined' && window.ethereum !== undefined;
+export const getTokenContract = async (tokenSymbol: string) => {
+  const tokenAddress = TOKEN_ADDRESSES[tokenSymbol];
+  
+  if (!tokenAddress) {
+    throw new Error(`Unsupported token: ${tokenSymbol}`);
+  }
+  
+  const provider = await getMetaMaskProvider();
+  return new ethers.Contract(tokenAddress, ERC20_ABI, provider);
 };
 
-// Connect to MetaMask and get the provider and signer
-export const connectMetaMask = async () => {
-  if (!isMetaMaskAvailable()) {
-    throw new Error('MetaMask is not installed');
-  }
+export const getWalletAddress = async () => {
+  const provider = await getMetaMaskProvider();
+  const signer = await provider.getSigner();
+  return await signer.getAddress();
+};
 
+// Get token balance for the connected wallet
+export const getTokenBalance = async (tokenSymbol: string) => {
   try {
-    // Request account access
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    
-    if (accounts.length === 0) {
-      throw new Error('No accounts found');
+    if (tokenSymbol === 'ETH') {
+      const provider = await getMetaMaskProvider();
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const balance = await provider.getBalance(address);
+      return ethers.formatEther(balance);
+    } else {
+      const tokenContract = await getTokenContract(tokenSymbol);
+      const provider = await getMetaMaskProvider();
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const decimals = await tokenContract.decimals();
+      const balance = await tokenContract.balanceOf(address);
+      return ethers.formatUnits(balance, decimals);
     }
-    
-    // Create provider and signer
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    const network = await provider.getNetwork();
-    
-    return {
-      provider,
-      signer,
-      address,
-      chainId: Number(network.chainId)
-    };
   } catch (error) {
-    console.error('Error connecting to MetaMask:', error);
+    console.error('Error getting token balance:', error);
     throw error;
   }
 };
 
-// Helper to get token contract
-const getTokenContract = async (tokenAddress: string, signer: ethers.Signer) => {
-  return new ethers.Contract(tokenAddress, minimalERC20ABI, signer);
+// Get approximate USD value of tokens
+export const getTokenUSDPrice = async (tokenSymbol: string): Promise<number> => {
+  // In a production app, you would fetch real-time prices from an API like CoinGecko
+  // For the demo, we'll use placeholder values
+  const prices = {
+    'ETH': 3000, // $3000 per ETH
+    'USDC': 1,   // $1 per USDC
+    'USDT': 1,   // $1 per USDT
+  };
+  
+  return prices[tokenSymbol] || 0;
 };
 
-// Helper to get current price of ETH/USDC in USD for conversion
-const getTokenUSDPrice = async (tokenSymbol: string): Promise<number> => {
+export const sendTokens = async (
+  tokenSymbol: string,
+  amount: string,
+  recipientAddress: string
+) => {
   try {
-    // In production, you'd want to use a price feed API like CoinGecko or Chainlink
-    // For this example, we'll use hardcoded values
-    if (tokenSymbol === 'ETH') return 3000;  // Example price, $3000 per ETH
-    if (tokenSymbol === 'USDC' || tokenSymbol === 'USDT') return 1; // Stablecoins are ~$1
-    return 1; // Default
+    const provider = await getMetaMaskProvider();
+    const signer = await provider.getSigner();
+    const fromAddress = await signer.getAddress();
+    
+    if (tokenSymbol === 'ETH') {
+      // Send ETH transaction
+      const tx = await signer.sendTransaction({
+        to: recipientAddress,
+        value: ethers.parseEther(amount),
+      });
+      
+      return {
+        success: true,
+        txHash: tx.hash,
+        fromAddress,
+      };
+    } else {
+      // Send ERC-20 transaction
+      const tokenContract = await getTokenContract(tokenSymbol);
+      const decimals = await tokenContract.decimals();
+      const tokenAmount = ethers.parseUnits(amount, decimals);
+      const contractWithSigner = tokenContract.connect(signer);
+      
+      const tx = await contractWithSigner.transfer(recipientAddress, tokenAmount);
+      const receipt = await tx.wait();
+      
+      return {
+        success: true,
+        txHash: receipt.hash,
+        fromAddress,
+      };
+    }
   } catch (error) {
-    console.error('Error fetching price:', error);
-    return 1; // Default fallback
+    console.error('Error sending tokens:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 };
 
-// Make a crypto donation
-export const makeCryptoDonation = async (
-  campaignId: string,
-  tokenType: string,
-  amount: string,
-  message: string = '',
-  isAnonymous: boolean = false
-): Promise<CryptoDonation> => {
+export const submitCryptoDonation = async ({
+  campaignId,
+  userId,
+  walletAddress,
+  tokenType,
+  amount,
+  txHash,
+  message,
+  isAnonymous
+}: {
+  campaignId: string;
+  userId?: string;
+  walletAddress: string;
+  tokenType: string;
+  amount: string;
+  txHash: string;
+  message: string;
+  isAnonymous: boolean;
+}) => {
   try {
-    const { signer, address } = await connectMetaMask();
-    const tokenInfo = SUPPORTED_TOKENS[tokenType as keyof typeof SUPPORTED_TOKENS];
-    
-    if (!tokenInfo) {
-      throw new Error(`Unsupported token: ${tokenType}`);
-    }
-    
-    // Convert amount to correct decimals
-    const decimals = tokenInfo.decimals;
-    const tokenAmount = ethers.parseUnits(amount, decimals);
-    
-    // Get USD value for campaign stats
+    // Get the USD value of the donation
     const tokenUsdPrice = await getTokenUSDPrice(tokenType);
     const usdValue = parseFloat(amount) * tokenUsdPrice;
     
-    let txHash;
-    
-    // Handle ETH or ERC-20 transfer
-    if (tokenInfo.symbol === 'ETH') {
-      // Send ETH transaction
-      const recipientAddress = '0xYourProjectWalletAddress'; // Replace with your project's wallet address
-      const tx = await signer.sendTransaction({
-        to: recipientAddress,
-        value: tokenAmount,
-      });
-      
-      // Wait for transaction to be mined
-      await tx.wait();
-      txHash = tx.hash;
-      
-    } else if (tokenInfo.address) {
-      // Send ERC-20 token transaction
-      const tokenContract = await getTokenContract(tokenInfo.address, signer);
-      const recipientAddress = '0xYourProjectWalletAddress'; // Replace with your project's wallet address
-      
-      const tx = await tokenContract.transfer(recipientAddress, tokenAmount);
-      
-      // Wait for transaction to be mined
-      await tx.wait();
-      txHash = tx.hash;
-    } else {
-      throw new Error(`Invalid token configuration for ${tokenType}`);
-    }
-    
-    // Get authenticated user if available
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    // Store the donation in the database
-    const { data, error } = await supabase.from('crypto_donations').insert([{
-      campaign_id: campaignId,
-      user_id: user?.id || null,
-      wallet_address: address,
-      token_type: tokenType,
-      amount: amount,
-      tx_hash: txHash,
-      message: message || null,
-      is_anonymous: isAnonymous,
-      usd_value_at_time: usdValue
-    }]).select().single();
-    
-    if (error) {
-      throw new Error(`Database error: ${error.message}`);
-    }
-    
-    toast.success('Crypto donation successful!');
-    
-    return data as CryptoDonation;
-  } catch (error: any) {
-    toast.error(`Donation failed: ${error.message}`);
-    throw error;
-  }
-};
-
-// Get crypto donations by campaign
-export const getCryptoDonationsByCampaign = async (campaignId: string): Promise<CryptoDonation[]> => {
-  const { data, error } = await supabase
-    .from('crypto_donations')
-    .select('*')
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: false });
-  
-  if (error) {
-    throw new Error(`Database error: ${error.message}`);
-  }
-  
-  return data as CryptoDonation[];
-};
-
-// Create a crypto withdrawal request
-export const createCryptoWithdrawalRequest = async (
-  campaignId: string,
-  walletAddress: string,
-  tokenType: string,
-  amount: number
-): Promise<CryptoWithdrawal> => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
-    // Validate wallet address format
-    if (!ethers.isAddress(walletAddress)) {
-      throw new Error('Invalid wallet address');
-    }
-    
-    // Create the withdrawal request
+    // Insert the crypto donation
     const { data, error } = await supabase
-      .from('crypto_withdrawals')
-      .insert([{
+      .from('crypto_donations')
+      .insert({
         campaign_id: campaignId,
-        user_id: user.id,
+        user_id: userId || null,
         wallet_address: walletAddress,
         token_type: tokenType,
-        amount: amount,
-        status: 'pending'
-      }])
-      .select()
-      .single();
+        amount: parseFloat(amount),
+        tx_hash: txHash,
+        message,
+        is_anonymous: isAnonymous,
+        usd_value_at_time: usdValue
+      });
     
-    if (error) {
-      throw new Error(`Database error: ${error.message}`);
-    }
+    if (error) throw error;
     
-    toast.success('Crypto withdrawal request submitted successfully!');
-    
-    return data as CryptoWithdrawal;
-  } catch (error: any) {
-    toast.error(`Withdrawal request failed: ${error.message}`);
+    return data;
+  } catch (error) {
+    console.error('Error submitting crypto donation:', error);
     throw error;
   }
 };
 
-// Get crypto withdrawal requests by campaign
-export const getCryptoWithdrawalsByCampaign = async (campaignId: string): Promise<CryptoWithdrawal[]> => {
-  const { data, error } = await supabase
-    .from('crypto_withdrawals')
-    .select('*')
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: false });
-  
-  if (error) {
-    throw new Error(`Database error: ${error.message}`);
-  }
-  
-  return data as CryptoWithdrawal[];
-};
-
-// Get crypto withdrawal requests by user
-export const getCryptoWithdrawalsByUser = async (userId: string): Promise<CryptoWithdrawal[]> => {
-  const { data, error } = await supabase
-    .from('crypto_withdrawals')
-    .select('*, campaign:campaign_id(title)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-  
-  if (error) {
-    throw new Error(`Database error: ${error.message}`);
-  }
-  
-  return data as CryptoWithdrawal[];
-};
-
-// Check if MetaMask wallet is connected
-export const getConnectedWallet = async (): Promise<string | null> => {
-  if (!isMetaMaskAvailable()) {
-    return null;
-  }
-  
+export const getCryptoDonationsByCampaign = async (campaignId: string): Promise<CryptoDonation[]> => {
   try {
-    const accounts = await window.ethereum.request({ 
-      method: 'eth_accounts' 
-    });
+    const { data, error } = await supabase
+      .from('crypto_donations')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .order('created_at', { ascending: false });
     
-    return accounts.length > 0 ? accounts[0] : null;
+    if (error) throw error;
+    
+    return data as CryptoDonation[];
   } catch (error) {
-    console.error('Error checking connected wallet:', error);
-    return null;
+    console.error('Error fetching crypto donations:', error);
+    throw error;
+  }
+};
+
+export const submitCryptoWithdrawal = async ({
+  campaignId,
+  userId,
+  walletAddress,
+  tokenType,
+  amount
+}: {
+  campaignId: string;
+  userId: string;
+  walletAddress: string;
+  tokenType: string;
+  amount: string;
+}) => {
+  try {
+    const { data, error } = await supabase
+      .from('crypto_withdrawals')
+      .insert({
+        campaign_id: campaignId,
+        user_id: userId,
+        wallet_address: walletAddress,
+        token_type: tokenType,
+        amount: parseFloat(amount)
+      });
+    
+    if (error) throw error;
+    
+    return data;
+  } catch (error) {
+    console.error('Error submitting crypto withdrawal:', error);
+    throw error;
+  }
+};
+
+export const getCryptoWithdrawalsByCampaign = async (campaignId: string): Promise<CryptoWithdrawal[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('crypto_withdrawals')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data as CryptoWithdrawal[];
+  } catch (error) {
+    console.error('Error fetching crypto withdrawals:', error);
+    throw error;
+  }
+};
+
+export const getUserCryptoDonations = async (userId: string): Promise<CryptoDonation[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('crypto_donations')
+      .select('*, campaigns(title)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data as unknown as CryptoDonation[];
+  } catch (error) {
+    console.error('Error fetching user crypto donations:', error);
+    throw error;
+  }
+};
+
+export const getUserCryptoWithdrawals = async (userId: string): Promise<CryptoWithdrawal[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('crypto_withdrawals')
+      .select('*, campaigns(title)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data as unknown as CryptoWithdrawal[];
+  } catch (error) {
+    console.error('Error fetching user crypto withdrawals:', error);
+    throw error;
   }
 };
