@@ -59,21 +59,20 @@ export const getAllWithdrawalRequests = async () => {
     .from('withdrawal_requests')
     .select(`
       *,
-      campaign:campaign_id (
-        title
-      ),
-      profiles:user_id (
-        full_name
-      )
+      campaigns:campaign_id (title), 
+      profiles:user_id (full_name)
     `)
     .order('created_at', { ascending: false });
-  
+
+  // Handle error if any
   if (error) {
     throw new Error(error.message);
   }
-  
+
+  // Return the data fetched, which includes relationships
   return data;
 };
+
 
 export const updateWithdrawalRequestStatus = async (id: string, status: 'approved' | 'rejected', notes?: string) => {
   const { data, error } = await supabase
@@ -95,9 +94,7 @@ export const updateWithdrawalRequestStatus = async (id: string, status: 'approve
 };
 
 export const checkIfUserIsAdmin = async (userId: string) => {
-  const { data, error } = await supabase.rpc('is_admin', {
-    user_id: userId
-  });
+  const { data, error } = await supabase.rpc('is_admin')
   
   if (error) {
     throw new Error(error.message);
@@ -106,35 +103,30 @@ export const checkIfUserIsAdmin = async (userId: string) => {
   return !!data;
 };
 
-export const getWithdrawalRequestsByCampaign = async (campaignId: string) => {
-  const { data, error } = await supabase
-    .from('withdrawal_requests')
-    .select('*')
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: false });
-  
-  if (error) {
-    throw new Error(error.message);
-  }
-  
-  return data as WithdrawalRequest[];
-};
+  export const getWithdrawalRequestsByCampaign = async (campaignId: string) => {
+    const { data, error } = await supabase
+      .from('withdrawal_requests')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      throw new Error(error.message);
+    }
+    
+    return data as WithdrawalRequest[];
+  };
 
 export const setUserAsAdmin = async (email: string) => {
-  // Use a custom query instead of rpc since the function isn't in the TypeScript types
-  const { data, error } = await supabase
-    .from('admin_users')
-    .select('*')
-    .eq('user_id', 'test')
-    .then(async () => {
-      // This is just a workaround - after this succeeds, we make the actual RPC call
-      return await supabase.rpc('set_user_as_admin', { email_address: email } as any);
-    });
-  
+  const { data, error } = await supabase.rpc('set_user_as_admin', {
+    email_address: email,
+  });
+
   if (error) {
     throw new Error(error.message);
   }
-  
+
   return data;
 };
+
 
