@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/components/ui/use-toast';
+import CryptoDashboardSection from '@/components/CryptoDashboardSection';
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -197,6 +198,10 @@ const DashboardPage = () => {
             </>
           )}
         </Tabs>
+        
+        {user && (
+          <CryptoDashboardSection userId={user.id} />
+        )}
       </main>
       
       <Footer />

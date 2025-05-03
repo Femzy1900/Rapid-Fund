@@ -75,6 +75,103 @@ export type Database = {
         }
         Relationships: []
       }
+      crypto_donations: {
+        Row: {
+          amount: number
+          campaign_id: string
+          created_at: string
+          id: string
+          is_anonymous: boolean | null
+          message: string | null
+          token_type: string
+          tx_hash: string
+          usd_value_at_time: number | null
+          user_id: string | null
+          wallet_address: string
+        }
+        Insert: {
+          amount: number
+          campaign_id: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean | null
+          message?: string | null
+          token_type: string
+          tx_hash: string
+          usd_value_at_time?: number | null
+          user_id?: string | null
+          wallet_address: string
+        }
+        Update: {
+          amount?: number
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          is_anonymous?: boolean | null
+          message?: string | null
+          token_type?: string
+          tx_hash?: string
+          usd_value_at_time?: number | null
+          user_id?: string | null
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crypto_donations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crypto_withdrawals: {
+        Row: {
+          amount: number
+          campaign_id: string
+          created_at: string
+          id: string
+          status: string
+          token_type: string
+          tx_hash: string | null
+          updated_at: string
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          amount: number
+          campaign_id: string
+          created_at?: string
+          id?: string
+          status?: string
+          token_type: string
+          tx_hash?: string | null
+          updated_at?: string
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          amount?: number
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          status?: string
+          token_type?: string
+          tx_hash?: string | null
+          updated_at?: string
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crypto_withdrawals_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       donations: {
         Row: {
           amount: number
