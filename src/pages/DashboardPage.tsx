@@ -242,6 +242,8 @@ const CampaignListItem = ({ campaign, queryClient }: { campaign: Campaign, query
     setIsDeleting(true);
     
     try {
+      console.log('Deleting campaign ID:', campaign.id);
+
       await deleteCampaign(campaign.id);
       
       // Refresh campaigns data
