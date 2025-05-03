@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -23,6 +22,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { format, addDays } from 'date-fns';
+import ImageUpload from '@/components/ImageUpload';
 
 const formSchema = z.object({
   title: z.string().min(5, { message: 'Title must be at least 5 characters long' }),
@@ -42,19 +42,21 @@ const EditCampaignPage = () => {
   const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+  const [imageUrl, setImageUrl] = useState<string>('');
+
+
   const { data: campaign, isLoading, error } = useQuery({
     queryKey: ['campaign', id],
     queryFn: () => id ? getCampaignById(id) : Promise.reject('No campaign ID'),
     enabled: !!id
   });
-  
+
   useEffect(() => {
     if (!user) {
       navigate('/auth');
     }
   }, [user, navigate]);
-  
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -67,22 +69,23 @@ const EditCampaignPage = () => {
       is_urgent: false,
     }
   });
-  
+
   // Fill form with campaign data when loaded
   useEffect(() => {
     if (campaign) {
+      const formattedDate = format(new Date(campaign.expires_at), 'yyyy-MM-dd');
+      setImageUrl(campaign.image_url || '');
       form.reset({
         title: campaign.title,
         description: campaign.description,
         category: campaign.category,
         image_url: campaign.image_url || '',
         target_amount: campaign.target_amount,
-        expires_at: format(new Date(campaign.expires_at), 'yyyy-MM-dd'),
+        expires_at: formattedDate,
         is_urgent: campaign.is_urgent || false,
       });
     }
   }, [campaign, form]);
-
   // Ensure user can only edit their own campaigns
   useEffect(() => {
     if (campaign && user && campaign.user_id !== user.id) {
@@ -118,22 +121,22 @@ const EditCampaignPage = () => {
       </div>
     );
   }
-  
+
   const onSubmit = async (values: FormValues) => {
     if (!user || !id) return;
-    
+
     setIsSubmitting(true);
     try {
       await updateCampaign(id, {
         ...values,
         expires_at: new Date(values.expires_at).toISOString(),
       });
-      
+
       toast({
         title: "Campaign updated successfully",
         description: "Your changes have been saved.",
       });
-      
+
       navigate(`/campaigns/${id}`);
     } catch (error) {
       toast({
@@ -145,7 +148,7 @@ const EditCampaignPage = () => {
       setIsSubmitting(false);
     }
   };
-  
+
   const categories = [
     { label: 'Medical', value: 'Medical' },
     { label: 'Natural Disaster', value: 'Natural Disaster' },
@@ -154,15 +157,15 @@ const EditCampaignPage = () => {
     { label: 'Community', value: 'Community' },
     { label: 'Emergency', value: 'Emergency' },
   ];
-  
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
-      
+
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">Edit Campaign</h1>
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               {/* Title */}
@@ -179,7 +182,7 @@ const EditCampaignPage = () => {
                   </FormItem>
                 )}
               />
-              
+
               {/* Category */}
               <FormField
                 control={form.control}
@@ -209,7 +212,7 @@ const EditCampaignPage = () => {
                   </FormItem>
                 )}
               />
-              
+
               {/* Description */}
               <FormField
                 control={form.control}
@@ -218,9 +221,9 @@ const EditCampaignPage = () => {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Describe your campaign in detail" 
-                        {...field} 
+                      <Textarea
+                        placeholder="Describe your campaign in detail"
+                        {...field}
                         rows={6}
                       />
                     </FormControl>
@@ -228,9 +231,9 @@ const EditCampaignPage = () => {
                   </FormItem>
                 )}
               />
-              
+
               {/* Image URL */}
-              <FormField
+              {/* <FormField
                 control={form.control}
                 name="image_url"
                 render={({ field }) => (
@@ -242,8 +245,17 @@ const EditCampaignPage = () => {
                     <FormMessage />
                   </FormItem>
                 )}
+              /> */}
+
+              <ImageUpload
+                onImageUploaded={(url) => {
+                  setImageUrl(url);
+                  form.setValue("image_url", url);
+                }}
+                existingImageUrl={imageUrl}
               />
-              
+
+
               {/* Target Amount */}
               <FormField
                 control={form.control}
@@ -252,9 +264,9 @@ const EditCampaignPage = () => {
                   <FormItem>
                     <FormLabel>Funding Goal ($)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        placeholder="Enter your funding goal" 
+                      <Input
+                        type="number"
+                        placeholder="Enter your funding goal"
                         {...field}
                         onChange={(e) => field.onChange(+e.target.value)}
                       />
@@ -263,7 +275,7 @@ const EditCampaignPage = () => {
                   </FormItem>
                 )}
               />
-              
+
               {/* Expiration Date */}
               <FormField
                 control={form.control}
@@ -272,8 +284,8 @@ const EditCampaignPage = () => {
                   <FormItem>
                     <FormLabel>End Date</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="date" 
+                      <Input
+                        type="date"
                         {...field}
                         min={format(new Date(), 'yyyy-MM-dd')}
                       />
@@ -282,7 +294,7 @@ const EditCampaignPage = () => {
                   </FormItem>
                 )}
               />
-              
+
               {/* Is Urgent */}
               <FormField
                 control={form.control}
@@ -304,16 +316,16 @@ const EditCampaignPage = () => {
                   </FormItem>
                 )}
               />
-              
+
               <div className="flex justify-between">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => navigate(`/campaigns/${id}`)}
                 >
                   Cancel
                 </Button>
-                
+
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? 'Updating...' : 'Update Campaign'}
                 </Button>
@@ -322,7 +334,7 @@ const EditCampaignPage = () => {
           </Form>
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

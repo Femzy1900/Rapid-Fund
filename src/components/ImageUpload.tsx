@@ -17,6 +17,7 @@ const ImageUpload = ({ onImageUploaded, existingImageUrl }: ImageUploadProps) =>
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(existingImageUrl || null);
   const { user } = useAuth();
+  
 
   const uploadImage = async (file: File) => {
     if (!user) {
