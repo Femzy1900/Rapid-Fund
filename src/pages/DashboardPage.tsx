@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Campaign } from '@/types';
+import { Campaign, Donation } from '@/types';
 import { Edit, Trash, Clock, Users, PlusCircle, DollarSign, TrendingUp } from 'lucide-react';
 import {
   AlertDialog,
@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/components/ui/use-toast';
 import CryptoDashboardSection from '@/components/CryptoDashboardSection';
+import { getDonationsByCampaign } from '@/services/donationService';
+import { getDonationsByUser } from '@/services/donationService';
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -50,6 +52,21 @@ const DashboardPage = () => {
     enabled: !!user
   });
   
+  const {data: campaignDonation} = useQuery({ 
+    queryKey: ['donations', user?.id],
+    queryFn: () => user ? getDonationsByCampaign(user.id) : Promise.reject('Not authenticated'),
+    enabled: !!user
+  });
+
+  const { data: userDonations } = useQuery({
+    queryKey: ['userDonations', user?.id],
+    queryFn: () => user ? getDonationsByUser(user.id) : Promise.reject('Not authenticated'),
+    enabled: !!user
+  });
+  
+  console.log('User Donation:', userDonations);
+  console.log('User Campaigns:', userCampaigns);
+  console.log('Campaigns Donations:', campaignDonation);
   if (!user) {
     return null;
   }
@@ -74,8 +91,8 @@ const DashboardPage = () => {
   const totalDonors = userCampaigns?.reduce((sum: number, campaign: Campaign) => 
     sum + (campaign.donors_count || 0), 0) || 0;
   
-  const totalRaised = userCampaigns?.reduce((sum: number, campaign: Campaign) => 
-    sum + (campaign.raised_amount || 0), 0) || 0;
+  const totalRaised = userDonations?.reduce((sum: number, donation: Donation) => 
+    sum + (donation.amount || 0), 0) || 0;
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -100,7 +117,7 @@ const DashboardPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                {profile?.campaigns_created || 0}
+                {userCampaigns?.length || 0}
               </div>
             </CardContent>
           </Card>
@@ -111,7 +128,7 @@ const DashboardPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-600 flex items-center">
-                {formatCurrency(profile?.total_donated || 0)}
+                {formatCurrency(profile?.total_donated  || 0)}
                 <DollarSign className="h-5 w-5 ml-1 text-green-500" />
               </div>
             </CardContent>

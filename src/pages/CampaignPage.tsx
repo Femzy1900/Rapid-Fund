@@ -79,6 +79,21 @@ const CampaignPage = () => {
     queryFn: () => getCommentsByCampaign(id as string),
     enabled: !!id
   });
+
+  const {data: campaignDonation} = useQuery({ 
+      queryKey: ['donations', user?.id],
+      queryFn: () => user ? getDonationsByCampaign(campaign.id) : Promise.reject('Not authenticated'),
+      enabled: !!user
+  });
+  
+  console.log("campaing Donation",campaignDonation);
+  // Calculate total donations and donors  
+    const totalRaised = campaignDonation?.reduce((sum: number, donation: Donation) => 
+      sum + (donation.amount || 0), 0) || 0;
+    const totalDonors = campaignDonation?.length || 0;
+
+    console.log("Total Raised:", totalRaised);
+    console.log("Total Donors:", totalDonors);
   
   // Setup real-time subscription for campaign updates
   useEffect(() => {
@@ -192,7 +207,7 @@ const CampaignPage = () => {
   }
   
   const progressPercentage = Math.min(
-    Math.round((campaign.raised_amount / campaign.target_amount) * 100),
+    Math.round((totalRaised/ campaign.target_amount) * 100),
     100
   );
   
@@ -425,11 +440,11 @@ const CampaignPage = () => {
                           </div>
                           <div className="bg-green-50 p-4 rounded-lg">
                             <p className="text-sm text-gray-500 mb-1">Raised</p>
-                            <p className="text-xl font-bold text-green-700">{formatCurrency(campaign.raised_amount)}</p>
+                            <p className="text-xl font-bold text-green-700">{formatCurrency(totalRaised)}</p>
                           </div>
                           <div className="bg-purple-50 p-4 rounded-lg">
                             <p className="text-sm text-gray-500 mb-1">Donors</p>
-                            <p className="text-xl font-bold text-purple-700">{campaign.donors_count}</p>
+                            <p className="text-xl font-bold text-purple-700">{totalDonors}</p>
                           </div>
                         </div>
                         <p className="whitespace-pre-line">{campaign.description}</p>
@@ -555,7 +570,7 @@ const CampaignPage = () => {
                     <div className="mb-6">
                       <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium flex items-center">
-                          {formatCurrency(campaign.raised_amount)}
+                          {formatCurrency(totalRaised)}
                           <DollarSign className="h-3 w-3 ml-1 text-green-500" />
                         </span>
                         <span className="text-gray-500">of {formatCurrency(campaign.target_amount)}</span>
@@ -565,7 +580,7 @@ const CampaignPage = () => {
                       <div className="flex justify-between mt-2 text-sm text-gray-600">
                         <div className="flex items-center">
                           <Users className="h-3 w-3 mr-1" />
-                          <span>{campaign.donors_count} donors</span>
+                          <span>{totalDonors} donors</span>
                         </div>
                         <span>{progressPercentage}% funded</span>
                       </div>
