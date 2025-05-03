@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCampaignById } from '@/services/campaignService';
 import { getDonationsByCampaign } from '@/services/donationService';
 import { getWithdrawalRequestsByCampaign } from '@/services/withdrawalService';
+import { getCryptoDonationsByCampaign, getCryptoWithdrawalsByCampaign } from '@/services/cryptoService';
+import { getCommentsByCampaign } from '@/services/commentService';
 import { useAuth } from '@/context/AuthContext';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -13,12 +15,20 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { CheckCircle, Clock, DollarSign, Users, Heart } from 'lucide-react';
+import { CheckCircle, Clock, DollarSign, Users, Heart, Share2, Wallet, MessageCircle } from 'lucide-react';
 import { formatCurrency, calculateDaysLeft } from '@/utils/formatters';
 import WithdrawalRequestForm from '@/components/WithdrawalRequestForm';
 import WithdrawalRequestsList from '@/components/WithdrawalRequestsList';
+import CryptoDonationForm from '@/components/CryptoDonationForm';
+import CryptoWithdrawalForm from '@/components/CryptoWithdrawalForm';
+import CryptoDonationsList from '@/components/CryptoDonationsList';
+import CryptoWithdrawalsList from '@/components/CryptoWithdrawalsList';
+import CommentsList from '@/components/CommentsList';
+import AddCommentForm from '@/components/AddCommentForm';
 import { Donation } from '@/types';
 import { createStripeCheckoutSession } from '@/services/donationService';
+import { toast } from '@/components/ui/sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const CampaignPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +39,10 @@ const CampaignPage = () => {
   const [donationAmount, setDonationAmount] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
   const [withdrawalSheetOpen, setWithdrawalSheetOpen] = useState(false);
+  const [cryptoWithdrawalSheetOpen, setCryptoWithdrawalSheetOpen] = useState(false);
+  const [cryptoDonationSheetOpen, setCryptoDonationSheetOpen] = useState(false);
+  const [donationTab, setDonationTab] = useState('fiat');
+  const [shareTooltip, setShareTooltip] = useState('Copy link');
   
   const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ['campaign', id],
@@ -42,11 +56,114 @@ const CampaignPage = () => {
     enabled: !!id
   });
   
+  const { data: cryptoDonations, isLoading: cryptoDonationsLoading } = useQuery({
+    queryKey: ['cryptoDonations', id],
+    queryFn: () => getCryptoDonationsByCampaign(id as string),
+    enabled: !!id
+  });
+  
   const { data: withdrawalRequests, isLoading: withdrawalRequestsLoading } = useQuery({
     queryKey: ['withdrawalRequests', id],
     queryFn: () => getWithdrawalRequestsByCampaign(id as string),
     enabled: !!id
   });
+  
+  const { data: cryptoWithdrawals, isLoading: cryptoWithdrawalsLoading } = useQuery({
+    queryKey: ['cryptoWithdrawals', id],
+    queryFn: () => getCryptoWithdrawalsByCampaign(id as string),
+    enabled: !!id
+  });
+  
+  const { data: comments, isLoading: commentsLoading } = useQuery({
+    queryKey: ['comments', id],
+    queryFn: () => getCommentsByCampaign(id as string),
+    enabled: !!id
+  });
+  
+  // Setup real-time subscription for campaign updates
+  useEffect(() => {
+    if (!id) return;
+    
+    // Subscribe to campaigns table updates
+    const channel = supabase
+      .channel('campaign-updates')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'campaigns',
+          filter: `id=eq.${id}`
+        }, 
+        (payload) => {
+          // Invalidate and refetch campaign data
+          queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to donations table updates
+    const donationsChannel = supabase
+      .channel('donation-updates')
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'donations',
+          filter: `campaign_id=eq.${id}`
+        },
+        () => {
+          // Invalidate and refetch donations data
+          queryClient.invalidateQueries({ queryKey: ['donations', id] });
+          // Also refetch the campaign to update stats
+          queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to crypto donations table updates
+    const cryptoDonationsChannel = supabase
+      .channel('crypto-donation-updates')
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'crypto_donations',
+          filter: `campaign_id=eq.${id}`
+        },
+        () => {
+          // Invalidate and refetch crypto donations data
+          queryClient.invalidateQueries({ queryKey: ['cryptoDonations', id] });
+          // Also refetch the campaign to update stats
+          queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+        }
+      )
+      .subscribe();
+      
+    // Subscribe to comments table updates
+    const commentsChannel = supabase
+      .channel('comment-updates')
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+          filter: `campaign_id=eq.${id}`
+        },
+        () => {
+          // Invalidate and refetch comments data
+          queryClient.invalidateQueries({ queryKey: ['comments', id] });
+        }
+      )
+      .subscribe();
+    
+    // Clean up subscriptions on unmount
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(donationsChannel);
+      supabase.removeChannel(cryptoDonationsChannel);
+      supabase.removeChannel(commentsChannel);
+    };
+  }, [id, queryClient]);
   
   const isOwner = user?.id === campaign?.user_id;
   
@@ -102,6 +219,7 @@ const CampaignPage = () => {
       window.location.href = url;
     } catch (error) {
       console.error('Error creating checkout session:', error);
+      toast.error('Failed to process donation. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -112,6 +230,56 @@ const CampaignPage = () => {
     queryClient.invalidateQueries({
       queryKey: ['withdrawalRequests', id]
     });
+  };
+  
+  const handleCryptoWithdrawalSuccess = () => {
+    setCryptoWithdrawalSheetOpen(false);
+    queryClient.invalidateQueries({
+      queryKey: ['cryptoWithdrawals', id]
+    });
+  };
+  
+  const handleCryptoDonationSuccess = () => {
+    setCryptoDonationSheetOpen(false);
+    queryClient.invalidateQueries({
+      queryKey: ['cryptoDonations', id]
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['campaign', id]
+    });
+  };
+  
+  const handleShareCampaign = () => {
+    const url = window.location.href;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: campaign.title,
+        text: `Check out this campaign: ${campaign.title}`,
+        url: url,
+      })
+      .catch((error) => {
+        console.error('Error sharing:', error);
+        fallbackShare(url);
+      });
+    } else {
+      fallbackShare(url);
+    }
+  };
+  
+  const fallbackShare = (url: string) => {
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        toast.success('Campaign link copied to clipboard!');
+        setShareTooltip('Copied!');
+        setTimeout(() => {
+          setShareTooltip('Copy link');
+        }, 2000);
+      })
+      .catch((error) => {
+        console.error('Failed to copy:', error);
+        toast.error('Failed to copy link. Please try again.');
+      });
   };
 
   return (
@@ -138,40 +306,82 @@ const CampaignPage = () => {
                 )}
               </div>
               
-              {isOwner && (
-                <div className="flex gap-2 mt-2 md:mt-0">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate(`/edit-campaign/${campaign.id}`)}
-                  >
-                    Edit Campaign
-                  </Button>
-                  
-                  <Sheet 
-                    open={withdrawalSheetOpen} 
-                    onOpenChange={setWithdrawalSheetOpen}
-                  >
-                    <SheetTrigger asChild>
-                      <Button>Withdraw Funds</Button>
-                    </SheetTrigger>
-                    <SheetContent className="w-full md:max-w-md overflow-y-auto">
-                      <SheetHeader>
-                        <SheetTitle>Withdraw Campaign Funds</SheetTitle>
-                        <SheetDescription>
-                          Request to withdraw funds from your campaign. Your request will be reviewed by our team.
-                        </SheetDescription>
-                      </SheetHeader>
-                      <div className="py-6">
-                        <WithdrawalRequestForm 
-                          campaign={campaign}
-                          userId={user!.id}
-                          onSuccess={handleWithdrawalSuccess}
-                        />
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-                </div>
-              )}
+              <div className="flex gap-2 mt-2 md:mt-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShareCampaign}
+                  className="group relative"
+                  aria-label="Share campaign"
+                  title={shareTooltip}
+                >
+                  <Share2 className="h-4 w-4 mr-2" /> Share
+                  <span className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    {shareTooltip}
+                  </span>
+                </Button>
+                
+                {isOwner && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => navigate(`/edit-campaign/${campaign.id}`)}
+                    >
+                      Edit Campaign
+                    </Button>
+                    
+                    <Sheet 
+                      open={withdrawalSheetOpen} 
+                      onOpenChange={setWithdrawalSheetOpen}
+                    >
+                      <SheetTrigger asChild>
+                        <Button>Withdraw Funds</Button>
+                      </SheetTrigger>
+                      <SheetContent className="w-full md:max-w-md overflow-y-auto">
+                        <SheetHeader>
+                          <SheetTitle>Withdraw Campaign Funds</SheetTitle>
+                          <SheetDescription>
+                            Request to withdraw funds from your campaign. Your request will be reviewed by our team.
+                          </SheetDescription>
+                        </SheetHeader>
+                        <div className="py-6">
+                          <WithdrawalRequestForm 
+                            campaign={campaign}
+                            userId={user!.id}
+                            onSuccess={handleWithdrawalSuccess}
+                          />
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                    
+                    <Sheet 
+                      open={cryptoWithdrawalSheetOpen} 
+                      onOpenChange={setCryptoWithdrawalSheetOpen}
+                    >
+                      <SheetTrigger asChild>
+                        <Button variant="outline">
+                          <Wallet className="h-4 w-4 mr-2" /> Withdraw Crypto
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent className="w-full md:max-w-md overflow-y-auto">
+                        <SheetHeader>
+                          <SheetTitle>Withdraw Crypto Funds</SheetTitle>
+                          <SheetDescription>
+                            Request to withdraw cryptocurrency from your campaign.
+                          </SheetDescription>
+                        </SheetHeader>
+                        <div className="py-6">
+                          <CryptoWithdrawalForm 
+                            campaignId={campaign.id}
+                            userId={user!.id}
+                            onSuccess={handleCryptoWithdrawalSuccess}
+                          />
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                  </>
+                )}
+              </div>
             </div>
             
             <h1 className="text-3xl md:text-4xl font-bold mb-2">{campaign.title}</h1>
@@ -190,8 +400,15 @@ const CampaignPage = () => {
                   <TabsList className="mb-4">
                     <TabsTrigger value="about">About</TabsTrigger>
                     <TabsTrigger value="updates">Donations</TabsTrigger>
+                    <TabsTrigger value="crypto">Crypto</TabsTrigger>
+                    <TabsTrigger value="comments">
+                      Comments {comments?.length ? `(${comments.length})` : ''}
+                    </TabsTrigger>
                     {isOwner && (
-                      <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+                      <>
+                        <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+                        <TabsTrigger value="crypto-withdrawals">Crypto Withdrawals</TabsTrigger>
+                      </>
                     )}
                   </TabsList>
                   
@@ -260,6 +477,44 @@ const CampaignPage = () => {
                     </Card>
                   </TabsContent>
                   
+                  <TabsContent value="crypto">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Cryptocurrency Donations</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <CryptoDonationsList 
+                          donations={cryptoDonations || []}
+                          isLoading={cryptoDonationsLoading}
+                        />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
+                  <TabsContent value="comments">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center">
+                          <MessageCircle className="h-5 w-5 mr-2" /> Comments & Support
+                        </CardTitle>
+                        <CardDescription>
+                          Leave a message of support for this campaign
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <AddCommentForm campaignId={id as string} />
+                        
+                        <div className="pt-4 border-t">
+                          <CommentsList 
+                            comments={comments || []} 
+                            campaignId={id as string}
+                            isLoading={commentsLoading} 
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                  
                   {isOwner && (
                     <TabsContent value="withdrawals">
                       <Card>
@@ -270,6 +525,22 @@ const CampaignPage = () => {
                           <WithdrawalRequestsList 
                             withdrawalRequests={withdrawalRequests || []}
                             isLoading={withdrawalRequestsLoading}
+                          />
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  )}
+                  
+                  {isOwner && (
+                    <TabsContent value="crypto-withdrawals">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Crypto Withdrawal Requests</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <CryptoWithdrawalsList 
+                            withdrawals={cryptoWithdrawals || []}
+                            isLoading={cryptoWithdrawalsLoading}
                           />
                         </CardContent>
                       </Card>
@@ -311,43 +582,83 @@ const CampaignPage = () => {
                     
                     {isCampaignActive && (
                       <>
-                        <div className="mb-6">
-                          <label className="block text-sm font-medium mb-1">
-                            Donation Amount
-                          </label>
-                          <div className="grid grid-cols-3 gap-2 mb-2">
-                            {[10, 50, 100].map((amount) => (
-                              <Button
-                                key={amount}
-                                type="button"
-                                variant={donationAmount === amount ? "default" : "outline"}
-                                onClick={() => setDonationAmount(amount)}
-                              >
-                                ${amount}
-                              </Button>
-                            ))}
-                          </div>
-                          <div className="flex items-center">
-                            <span className="mr-2">$</span>
-                            <input
-                              type="number"
-                              min="1"
-                              value={donationAmount}
-                              onChange={(e) => setDonationAmount(parseInt(e.target.value) || 0)}
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            />
-                          </div>
-                        </div>
+                        <Tabs value={donationTab} onValueChange={setDonationTab} className="mb-4">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="fiat">Card/Bank</TabsTrigger>
+                            <TabsTrigger value="crypto">Crypto</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
                         
-                        <Button
-                          className="w-full flex items-center justify-center gap-2"
-                          size="lg"
-                          onClick={handleDonateClick}
-                          disabled={isProcessing || donationAmount <= 0}
-                        >
-                          <Heart className="h-4 w-4" />
-                          {isProcessing ? "Processing..." : "Donate Now"}
-                        </Button>
+                        {donationTab === 'fiat' ? (
+                          <>
+                            <div className="mb-6">
+                              <label className="block text-sm font-medium mb-1">
+                                Donation Amount
+                              </label>
+                              <div className="grid grid-cols-3 gap-2 mb-2">
+                                {[10, 50, 100].map((amount) => (
+                                  <Button
+                                    key={amount}
+                                    type="button"
+                                    variant={donationAmount === amount ? "default" : "outline"}
+                                    onClick={() => setDonationAmount(amount)}
+                                  >
+                                    ${amount}
+                                  </Button>
+                                ))}
+                              </div>
+                              <div className="flex items-center">
+                                <span className="mr-2">$</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={donationAmount}
+                                  onChange={(e) => setDonationAmount(parseInt(e.target.value) || 0)}
+                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                              </div>
+                            </div>
+                            
+                            <Button
+                              className="w-full flex items-center justify-center gap-2"
+                              size="lg"
+                              onClick={handleDonateClick}
+                              disabled={isProcessing || donationAmount <= 0}
+                            >
+                              <Heart className="h-4 w-4" />
+                              {isProcessing ? "Processing..." : "Donate Now"}
+                            </Button>
+                          </>
+                        ) : (
+                          <Sheet 
+                            open={cryptoDonationSheetOpen} 
+                            onOpenChange={setCryptoDonationSheetOpen}
+                          >
+                            <SheetTrigger asChild>
+                              <Button
+                                className="w-full flex items-center justify-center gap-2"
+                                size="lg"
+                              >
+                                <Wallet className="h-4 w-4" />
+                                Donate with Crypto
+                              </Button>
+                            </SheetTrigger>
+                            <SheetContent className="w-full md:max-w-md overflow-y-auto">
+                              <SheetHeader>
+                                <SheetTitle>Donate with Cryptocurrency</SheetTitle>
+                                <SheetDescription>
+                                  Support this campaign using cryptocurrency through MetaMask.
+                                </SheetDescription>
+                              </SheetHeader>
+                              <div className="py-6">
+                                <CryptoDonationForm 
+                                  campaignId={campaign.id}
+                                  onSuccess={handleCryptoDonationSuccess}
+                                />
+                              </div>
+                            </SheetContent>
+                          </Sheet>
+                        )}
                       </>
                     )}
                   </CardContent>

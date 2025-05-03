@@ -55,3 +55,42 @@ export type WithdrawalRequest = {
     full_name?: string;
   };
 };
+
+export type CryptoDonation = {
+  id: string;
+  campaign_id: string;
+  user_id?: string;
+  wallet_address: string;
+  token_type: string;
+  amount: number;
+  tx_hash: string;
+  message?: string;
+  is_anonymous: boolean;
+  usd_value_at_time?: number;
+  created_at: string;
+};
+
+export type CryptoWithdrawal = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  wallet_address: string;
+  token_type: string;
+  amount: number;
+  tx_hash?: string;
+  status: 'pending' | 'completed' | 'failed';
+  created_at: string;
+  updated_at: string;
+};
+
+export type Comment = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  user?: {
+    full_name?: string;
+    avatar_url?: string;
+  };
+};
