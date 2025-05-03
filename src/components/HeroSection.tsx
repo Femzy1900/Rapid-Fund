@@ -30,7 +30,7 @@ const HeroSection = () => {
               <Button 
                 variant="outline" 
                 size="lg" 
-                onClick={() => navigate('/#campaigns')}
+                onClick={() => navigate('/campaigns')}
                 className="text-lg"
               >
                 Donate Now

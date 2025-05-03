@@ -92,13 +92,13 @@ const DashboardPage = () => {
   // Calculate total donations and donors
   const totalDonors = userCampaigns?.reduce((sum: number, campaign: Campaign) => 
     sum + (campaign.donors_count || 0), 0) || 0;
-  
+
+  const totalAmountDonated = userCampaigns?.reduce((sum: number, campaign: Campaign) => 
+    sum + (campaign.raised_amount || 0), 0) || 0;
+
   const totalRaised = userDonations?.reduce((sum: number, donation: Donation) => 
     sum + (donation.amount || 0), 0) || 0;
 
-   // Calculate total donations and donors for each campaign
-  const totalRaisedByCampaign = campaignDonation?.reduce((sum: number, donation: Donation) => 
-        sum + (donation.amount || 0), 0) || 0;
 
   const totalDonorsCampaign = campaignDonation?.length || 0;
   
@@ -140,7 +140,7 @@ const DashboardPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-600 flex items-center">
-                {formatCurrency(profile?.total_donated  || 0)}
+                {formatCurrency(totalRaised || 0)}
                 <DollarSign className="h-5 w-5 ml-1 text-green-500" />
               </div>
             </CardContent>
@@ -152,7 +152,7 @@ const DashboardPage = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600 flex items-center">
-                {formatCurrency(totalRaised)}
+                {formatCurrency(totalAmountDonated || 0)}
                 <TrendingUp className="h-5 w-5 ml-1 text-green-500" />
               </div>
             </CardContent>

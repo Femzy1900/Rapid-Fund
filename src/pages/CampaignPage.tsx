@@ -86,7 +86,6 @@ const CampaignPage = () => {
     enabled: !!user
   });
 
-  console.log("campaing Donation", campaignDonation);
   // Calculate total donations and donors  
   const totalRaised = campaignDonation?.reduce((sum: number, donation: Donation) =>
     sum + (donation.amount || 0), 0) || 0;
