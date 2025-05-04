@@ -8,7 +8,7 @@ export const getAllCryptoWithdrawals = async () => {
     .select(`
       *,
       campaign:campaign_id (title),
-      profiles:user_id (full_name)
+      profiles:user_id
     `)
     .order('created_at', { ascending: false });
   
