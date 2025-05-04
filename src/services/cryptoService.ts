@@ -21,6 +21,7 @@ export const SUPPORTED_TOKENS = {
   'DAI': 'Dai Stablecoin',
   'WBTC': 'Wrapped Bitcoin',
   'LINK': 'Chainlink',
+  'SOL': 'Solana',
 };
 
 // ABI for ERC20 tokens (minimal interface)
@@ -36,6 +37,12 @@ const ERC20_ABI = [
 // Check if MetaMask is available
 export const isMetaMaskAvailable = () => {
   return typeof window !== 'undefined' && window.ethereum !== undefined;
+};
+
+// Check if Phantom wallet is available
+export const isPhantomWalletAvailable = () => {
+  const isPhantomInstalled = window.phantom?.solana?.isPhantom;
+  return typeof window !== 'undefined' && isPhantomInstalled;
 };
 
 // Connect to MetaMask
@@ -57,7 +64,25 @@ export const connectMetaMask = async () => {
   }
 };
 
-// Get the connected wallet address if already connected
+// Connect to Phantom wallet
+export const connectPhantomWallet = async () => {
+  if (!isPhantomWalletAvailable()) {
+    throw new Error('Phantom wallet is not installed');
+  }
+  
+  try {
+    const provider = window.phantom?.solana;
+    const response = await provider.connect();
+    const publicKey = response.publicKey.toString();
+    
+    return { provider, publicKey };
+  } catch (error) {
+    console.error('Error connecting to Phantom wallet:', error);
+    throw error;
+  }
+};
+
+// Get the connected wallet address if already connected (MetaMask)
 export const getConnectedWallet = async () => {
   if (!isMetaMaskAvailable()) {
     return null;
@@ -68,6 +93,24 @@ export const getConnectedWallet = async () => {
     return accounts.length > 0 ? accounts[0] : null;
   } catch (error) {
     console.error('Error getting connected wallet:', error);
+    return null;
+  }
+};
+
+// Get the connected Phantom wallet address if already connected
+export const getConnectedPhantomWallet = async () => {
+  if (!isPhantomWalletAvailable()) {
+    return null;
+  }
+  
+  try {
+    const provider = window.phantom?.solana;
+    if (provider?.isConnected) {
+      return provider.publicKey.toString();
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting connected Phantom wallet:', error);
     return null;
   }
 };
@@ -108,6 +151,17 @@ export const getTokenBalance = async (tokenSymbol: string) => {
       const address = await signer.getAddress();
       const balance = await provider.getBalance(address);
       return ethers.formatEther(balance);
+    } else if (tokenSymbol === 'SOL') {
+      if (!isPhantomWalletAvailable()) {
+        throw new Error('Phantom wallet is not installed');
+      }
+      
+      const provider = window.phantom?.solana;
+      const connection = provider.connection;
+      const publicKey = provider.publicKey;
+      
+      const balance = await connection.getBalance(publicKey);
+      return (balance / 1000000000).toString(); // Convert lamports to SOL
     } else {
       const tokenContract = await getTokenContract(tokenSymbol);
       const provider = await getMetaMaskProvider();
@@ -134,6 +188,7 @@ export const getTokenUSDPrice = async (tokenSymbol: string): Promise<number> => 
     'DAI': 1,    // $1 per DAI
     'WBTC': 60000, // $60000 per BTC
     'LINK': 15,  // $15 per LINK
+    'SOL': 100,  // $100 per SOL
   };
   
   return prices[tokenSymbol] || 0;
@@ -145,6 +200,10 @@ export const sendTokens = async (
   recipientAddress: string
 ) => {
   try {
+    if (tokenSymbol === 'SOL') {
+      return await sendSolanaTokens(amount, recipientAddress);
+    }
+    
     const provider = await getMetaMaskProvider();
     const signer = await provider.getSigner();
     const fromAddress = await signer.getAddress();
@@ -190,6 +249,52 @@ export const sendTokens = async (
   }
 };
 
+// Send Solana tokens
+export const sendSolanaTokens = async (
+  amount: string,
+  recipientAddress: string
+) => {
+  if (!isPhantomWalletAvailable()) {
+    throw new Error('Phantom wallet is not installed');
+  }
+  
+  try {
+    const provider = window.phantom?.solana;
+    const connection = provider.connection;
+    const publicKey = provider.publicKey;
+    
+    // Convert amount to lamports (1 SOL = 10^9 lamports)
+    const lamports = parseFloat(amount) * 1000000000;
+    
+    // Create transaction
+    const transaction = new window.solanaWeb3.Transaction().add(
+      window.solanaWeb3.SystemProgram.transfer({
+        fromPubkey: publicKey,
+        toPubkey: recipientAddress,
+        lamports: lamports,
+      })
+    );
+    
+    // Send transaction
+    const { signature } = await provider.signAndSendTransaction(transaction);
+    
+    // Wait for confirmation
+    await connection.confirmTransaction(signature);
+    
+    return {
+      success: true,
+      txHash: signature,
+      fromAddress: publicKey.toString(),
+    };
+  } catch (error) {
+    console.error('Error sending SOL:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
 export const makeCryptoDonation = async (
   campaignId: string,
   tokenType: string,
@@ -198,21 +303,35 @@ export const makeCryptoDonation = async (
   isAnonymous: boolean = false
 ) => {
   try {
-    // Connect to MetaMask and get wallet details
-    const { address } = await connectMetaMask();
+    let donationResult;
+    let walletAddress;
     
-    // Send the tokens (ETH or ERC-20)
-    // In a real implementation, this would send to the campaign/platform's wallet
-    // For demo purposes, we'll just validate the transaction on the user's wallet
-    const result = await sendTokens(
-      tokenType,
-      amount,
-      // In a real app, this would be the receiving address of the platform or campaign
-      "0x0000000000000000000000000000000000000000"
-    );
+    if (tokenType === 'SOL') {
+      // Connect to Phantom wallet and make donation
+      const { publicKey } = await connectPhantomWallet();
+      walletAddress = publicKey;
+      
+      // For a real implementation, the recipient address would be a campaign or platform wallet
+      donationResult = await sendSolanaTokens(
+        amount,
+        "84zY1YR5akm7aMsZ8qEJSJxjstNKYhpQFVsPibLWNMdm" // Example Solana address
+      );
+    } else {
+      // Connect to MetaMask and get wallet details for ETH and other tokens
+      const { address } = await connectMetaMask();
+      walletAddress = address;
+      
+      // Send the tokens (ETH or ERC-20)
+      donationResult = await sendTokens(
+        tokenType,
+        amount,
+        // In a real app, this would be the receiving address of the platform or campaign
+        "0x0000000000000000000000000000000000000000"
+      );
+    }
     
-    if (!result.success) {
-      throw new Error(result.error || "Failed to send tokens");
+    if (!donationResult.success) {
+      throw new Error(donationResult.error || "Failed to send tokens");
     }
     
     // Get the current USD value of the donation
@@ -225,10 +344,10 @@ export const makeCryptoDonation = async (
       .insert({
         campaign_id: campaignId,
         user_id: (await supabase.auth.getUser()).data.user?.id,
-        wallet_address: address,
+        wallet_address: walletAddress,
         token_type: tokenType,
         amount: parseFloat(amount),
-        tx_hash: result.txHash,
+        tx_hash: donationResult.txHash,
         message: message,
         is_anonymous: isAnonymous,
         usd_value_at_time: usdValue
@@ -270,6 +389,27 @@ export const createCryptoWithdrawalRequest = async (
   } catch (error) {
     console.error('Error creating withdrawal request:', error);
     toast.error('Failed to submit withdrawal request');
+    throw error;
+  }
+};
+
+// Get all crypto withdrawals (for admin)
+export const getAllCryptoWithdrawals = async (): Promise<CryptoWithdrawal[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('crypto_withdrawals')
+      .select(`
+        *,
+        campaign:campaign_id (title),
+        profiles:user_id (full_name)
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data as CryptoWithdrawal[];
+  } catch (error) {
+    console.error('Error fetching all crypto withdrawals:', error);
     throw error;
   }
 };

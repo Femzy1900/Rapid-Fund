@@ -29,6 +29,7 @@ import { Donation } from '@/types';
 import { createStripeCheckoutSession } from '@/services/donationService';
 import { toast } from '@/components/ui/sonner';
 import { supabase } from '@/integrations/supabase/client';
+import PhantomDonationForm from '@/components/PhantomDonationForm';
 
 const CampaignPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +42,7 @@ const CampaignPage = () => {
   const [withdrawalSheetOpen, setWithdrawalSheetOpen] = useState(false);
   const [cryptoWithdrawalSheetOpen, setCryptoWithdrawalSheetOpen] = useState(false);
   const [cryptoDonationSheetOpen, setCryptoDonationSheetOpen] = useState(false);
+  const [phantomDonationSheetOpen, setPhantomDonationSheetOpen] = useState(false);
   const [donationTab, setDonationTab] = useState('fiat');
   const [shareTooltip, setShareTooltip] = useState('Copy link');
 
@@ -268,6 +270,16 @@ const CampaignPage = () => {
 
   const handleCryptoDonationSuccess = () => {
     setCryptoDonationSheetOpen(false);
+    queryClient.invalidateQueries({
+      queryKey: ['cryptoDonations', id]
+    });
+    queryClient.invalidateQueries({
+      queryKey: ['campaign', id]
+    });
+  };
+
+  const handlePhantomDonationSuccess = () => {
+    setPhantomDonationSheetOpen(false);
     queryClient.invalidateQueries({
       queryKey: ['cryptoDonations', id]
     });
@@ -610,9 +622,10 @@ const CampaignPage = () => {
                     {isCampaignActive && (
                       <>
                         <Tabs value={donationTab} onValueChange={setDonationTab} className="mb-4">
-                          <TabsList className="grid w-full grid-cols-2">
+                          <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="fiat">Card/Bank</TabsTrigger>
-                            <TabsTrigger value="crypto">Crypto</TabsTrigger>
+                            <TabsTrigger value="crypto">Ethereum</TabsTrigger>
+                            <TabsTrigger value="solana">Solana</TabsTrigger>
                           </TabsList>
                         </Tabs>
 
@@ -656,7 +669,7 @@ const CampaignPage = () => {
                               {isProcessing ? "Processing..." : "Donate Now"}
                             </Button>
                           </>
-                        ) : (
+                        ) : donationTab === 'crypto' ? (
                           <Sheet
                             open={cryptoDonationSheetOpen}
                             onOpenChange={setCryptoDonationSheetOpen}
@@ -667,20 +680,50 @@ const CampaignPage = () => {
                                 size="lg"
                               >
                                 <Wallet className="h-4 w-4" />
-                                Donate with Crypto
+                                Donate with Ethereum/ERC-20
                               </Button>
                             </SheetTrigger>
                             <SheetContent className="w-full md:max-w-md overflow-y-auto">
                               <SheetHeader>
                                 <SheetTitle>Donate with Cryptocurrency</SheetTitle>
                                 <SheetDescription>
-                                  Support this campaign using cryptocurrency through MetaMask.
+                                  Support this campaign using Ethereum or ERC-20 tokens through MetaMask.
                                 </SheetDescription>
                               </SheetHeader>
                               <div className="py-6">
                                 <CryptoDonationForm
                                   campaignId={campaign.id}
                                   onSuccess={handleCryptoDonationSuccess}
+                                />
+                              </div>
+                            </SheetContent>
+                          </Sheet>
+                        ) : (
+                          <Sheet
+                            open={phantomDonationSheetOpen}
+                            onOpenChange={setPhantomDonationSheetOpen}
+                          >
+                            <SheetTrigger asChild>
+                              <Button
+                                className="w-full flex items-center justify-center gap-2"
+                                size="lg"
+                                variant="default"
+                              >
+                                <Wallet className="h-4 w-4" />
+                                Donate with Solana
+                              </Button>
+                            </SheetTrigger>
+                            <SheetContent className="w-full md:max-w-md overflow-y-auto">
+                              <SheetHeader>
+                                <SheetTitle>Donate with Solana</SheetTitle>
+                                <SheetDescription>
+                                  Support this campaign using Solana through the Phantom wallet.
+                                </SheetDescription>
+                              </SheetHeader>
+                              <div className="py-6">
+                                <PhantomDonationForm
+                                  campaignId={campaign.id}
+                                  onSuccess={handlePhantomDonationSuccess}
                                 />
                               </div>
                             </SheetContent>

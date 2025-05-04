@@ -1,4 +1,3 @@
-
 export type Campaign = {
   id: string;
   title: string;
@@ -56,7 +55,47 @@ export type WithdrawalRequest = {
   };
 };
 
-export type CryptoDonation = {
+// Add Phantom wallet type definitions
+declare global {
+  interface Window {
+    phantom?: {
+      solana?: {
+        isPhantom: boolean;
+        isConnected?: boolean;
+        publicKey: {
+          toString: () => string;
+        };
+        connect: () => Promise<{
+          publicKey: {
+            toString: () => string;
+          };
+        }>;
+        disconnect: () => Promise<void>;
+        signAndSendTransaction: (transaction: any) => Promise<{
+          signature: string;
+        }>;
+        signTransaction: (transaction: any) => Promise<any>;
+        signAllTransactions: (transactions: any[]) => Promise<any[]>;
+        connection: {
+          getBalance: (publicKey: any) => Promise<number>;
+          confirmTransaction: (signature: string) => Promise<any>;
+        };
+      };
+    };
+    solanaWeb3?: {
+      Transaction: any;
+      SystemProgram: {
+        transfer: (params: {
+          fromPubkey: any;
+          toPubkey: any;
+          lamports: number;
+        }) => any;
+      };
+    };
+  }
+}
+
+export interface CryptoDonation {
   id: string;
   campaign_id: string;
   user_id?: string;
@@ -65,23 +104,33 @@ export type CryptoDonation = {
   amount: number;
   tx_hash: string;
   message?: string;
-  is_anonymous: boolean;
+  is_anonymous?: boolean;
   usd_value_at_time?: number;
   created_at: string;
-};
+  campaign?: {
+    title: string;
+  };
+}
 
-export type CryptoWithdrawal = {
+export interface CryptoWithdrawal {
   id: string;
   campaign_id: string;
   user_id: string;
   wallet_address: string;
   token_type: string;
   amount: number;
+  status: 'pending' | 'approved' | 'rejected';
   tx_hash?: string;
-  status: 'pending' | 'completed' | 'failed';
+  notes?: string;
   created_at: string;
   updated_at: string;
-};
+  campaign?: {
+    title: string;
+  };
+  profiles?: {
+    full_name: string | null;
+  };
+}
 
 export type Comment = {
   id: string;

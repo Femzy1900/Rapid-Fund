@@ -75,6 +75,45 @@ export type Database = {
         }
         Relationships: []
       }
+      comments: {
+        Row: {
+          campaign_id: string
+          content: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          content: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_comments_user_profile"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crypto_donations: {
         Row: {
           amount: number
@@ -307,7 +346,7 @@ export type Database = {
         Returns: undefined
       }
       is_admin: {
-        Args: { user_id: string }
+        Args: Record<PropertyKey, never> | { user_id: string }
         Returns: boolean
       }
       set_user_as_admin: {
@@ -315,7 +354,9 @@ export type Database = {
         Returns: boolean
       }
       update_campaign_stats: {
-        Args: { campaign_id: string; donation_amount: number }
+        Args:
+          | { campaign_id: string; donation_amount: number }
+          | { campaign_id: string; donation_amount: number }
         Returns: undefined
       }
       update_user_donation_stats: {
