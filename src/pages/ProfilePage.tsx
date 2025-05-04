@@ -122,7 +122,7 @@ const ProfilePage = () => {
                 <div className="flex flex-row md:flex-col gap-4 md:gap-2 text-center">
                   <div>
                     <div className="text-2xl font-bold text-blue-600">
-                      {userCampaigns ? userCampaigns.length : 0}
+                      {profile.campaigns_created || 0}
                     </div>
                     <div className="text-sm text-gray-500">Campaigns</div>
                   </div>
