@@ -14,21 +14,43 @@
       window.phantom = {
         solana: {
           isPhantom: true,
+          isConnected: false,
+          publicKey: null,
           connect: function() {
-            return Promise.resolve({
-              publicKey: {
-                toString: function() {
-                  return "84zY1YR5akm7aMsZ8qEJSJxjstNKYhpQFVsPibLWNMdm";
-                }
+            console.log('Connecting to Phantom wallet...');
+            this.isConnected = true;
+            this.publicKey = {
+              toString: function() {
+                return "84zY1YR5akm7aMsZ8qEJSJxjstNKYhpQFVsPibLWNMdm";
+              },
+              toBase58: function() {
+                return "84zY1YR5akm7aMsZ8qEJSJxjstNKYhpQFVsPibLWNMdm";
               }
-            });
+            };
+            return Promise.resolve({ publicKey: this.publicKey });
           },
-          signAndSendTransaction: function() {
-            return Promise.resolve({ signature: "mock-transaction-signature" });
+          disconnect: function() {
+            console.log('Disconnecting from Phantom wallet...');
+            this.isConnected = false;
+            this.publicKey = null;
+            return Promise.resolve();
+          },
+          signAndSendTransaction: function(transaction) {
+            console.log('Signing and sending transaction', transaction);
+            return Promise.resolve({ signature: "mock-transaction-signature-" + Math.random().toString(36).substring(2, 15) });
+          },
+          signTransaction: function(transaction) {
+            console.log('Signing transaction', transaction);
+            return Promise.resolve(transaction);
           },
           connection: {
-            getBalance: function() { return Promise.resolve(5000000000); },
-            confirmTransaction: function() { return Promise.resolve({}); }
+            getBalance: function() { 
+              return Promise.resolve(5000000000); // 5 SOL in lamports
+            },
+            confirmTransaction: function(signature) { 
+              console.log('Confirming transaction', signature);
+              return Promise.resolve({}); 
+            }
           }
         }
       };

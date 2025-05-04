@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, AlertCircle, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '@/components/ui/sonner';
 import { 
   isPhantomWalletAvailable,
   connectPhantomWallet,
@@ -35,20 +36,40 @@ const PhantomDonationForm = ({ campaignId, onSuccess }: PhantomDonationFormProps
   
   useEffect(() => {
     // Check if Phantom is available
-    setIsPhantomInstalled(isPhantomWalletAvailable());
+    const checkPhantomAvailability = () => {
+      const isAvailable = isPhantomWalletAvailable();
+      setIsPhantomInstalled(isAvailable);
+      
+      if (isAvailable) {
+        checkConnectedWallet();
+      }
+    };
     
-    // Check if wallet is already connected
-    if (isPhantomWalletAvailable()) {
-      checkConnectedWallet();
-    }
+    checkPhantomAvailability();
+    
+    // Add event listener for when the phantom wallet is installed
+    window.addEventListener('load', checkPhantomAvailability);
+    
+    return () => {
+      window.removeEventListener('load', checkPhantomAvailability);
+    };
   }, []);
   
   const checkConnectedWallet = async () => {
-    const address = await getConnectedPhantomWallet();
-    setWalletAddress(address);
+    try {
+      const address = await getConnectedPhantomWallet();
+      setWalletAddress(address);
+    } catch (err) {
+      console.error('Error checking wallet connection:', err);
+    }
   };
   
   const handleConnectWallet = async () => {
+    if (!isPhantomInstalled) {
+      setError('Please install Phantom wallet first');
+      return;
+    }
+    
     setIsConnecting(true);
     setError(null);
     
@@ -68,6 +89,11 @@ const PhantomDonationForm = ({ campaignId, onSuccess }: PhantomDonationFormProps
       return;
     }
     
+    if (!user) {
+      navigate('/auth', { state: { from: `/campaigns/${campaignId}` } });
+      return;
+    }
+    
     setIsDonating(true);
     setError(null);
     
@@ -80,11 +106,14 @@ const PhantomDonationForm = ({ campaignId, onSuccess }: PhantomDonationFormProps
         isAnonymous
       );
       
+      toast.success('Donation successful! Thank you for your contribution.');
+      
       if (onSuccess) {
         onSuccess();
       }
     } catch (err: any) {
       setError(err.message || 'Failed to make donation');
+      toast.error(err.message || 'Failed to make donation');
     } finally {
       setIsDonating(false);
     }

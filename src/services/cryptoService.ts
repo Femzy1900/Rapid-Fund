@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CryptoDonation, CryptoWithdrawal } from '@/types';
 import { ethers } from 'ethers';
@@ -407,7 +406,7 @@ export const getAllCryptoWithdrawals = async (): Promise<CryptoWithdrawal[]> => 
     
     if (error) throw error;
     
-    return data as CryptoWithdrawal[];
+    return data as unknown as CryptoWithdrawal[];
   } catch (error) {
     console.error('Error fetching all crypto withdrawals:', error);
     throw error;
