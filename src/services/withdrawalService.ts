@@ -69,7 +69,7 @@ export const getAllWithdrawalRequests = async () => {
     throw new Error(error.message);
   }
 
-  // Return the data fetched, which includes relationships
+  // Return the data fetched, which includes relationshipsss
   return data;
 };
 
