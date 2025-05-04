@@ -269,7 +269,7 @@ export const sendSolanaTokens = async (
     const transaction = new window.solanaWeb3.Transaction().add(
       window.solanaWeb3.SystemProgram.transfer({
         fromPubkey: publicKey,
-        toPubkey: recipientAddress,
+        toPubkey: new window.solanaWeb3.PublicKey(recipientAddress),
         lamports: lamports,
       })
     );
