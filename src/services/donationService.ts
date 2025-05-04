@@ -95,3 +95,45 @@ export const processDonationFromStripe = async (sessionId: string) => {
   
   return data;
 };
+
+// New function to handle donation notifications
+export const subscribeToNewDonations = (campaignId: string, onNewDonation: (donation: any) => void) => {
+  const channel = supabase
+    .channel(`campaign-donations-${campaignId}`)
+    .on('postgres_changes', 
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'donations',
+        filter: `campaign_id=eq.${campaignId}`
+      }, 
+      payload => {
+        onNewDonation(payload.new);
+      })
+    .subscribe();
+    
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
+
+// Add similar function for crypto donations
+export const subscribeToCryptoDonations = (campaignId: string, onNewDonation: (donation: any) => void) => {
+  const channel = supabase
+    .channel(`campaign-crypto-donations-${campaignId}`)
+    .on('postgres_changes', 
+      { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'crypto_donations',
+        filter: `campaign_id=eq.${campaignId}`
+      }, 
+      payload => {
+        onNewDonation(payload.new);
+      })
+    .subscribe();
+    
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};

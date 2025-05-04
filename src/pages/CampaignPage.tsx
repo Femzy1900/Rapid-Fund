@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCampaignById } from '@/services/campaignService';
-import { getDonationsByCampaign } from '@/services/donationService';
+import { getCampaignById, deleteCampaign } from '@/services/campaignService';
+import { getDonationsByCampaign, subscribeToNewDonations, subscribeToCryptoDonations } from '@/services/donationService';
 import { getWithdrawalRequestsByCampaign } from '@/services/withdrawalService';
 import { getCryptoDonationsByCampaign, getCryptoWithdrawalsByCampaign } from '@/services/cryptoService';
 import { getCommentsByCampaign } from '@/services/commentService';
@@ -15,7 +15,18 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { CheckCircle, Clock, DollarSign, Users, Heart, Share2, Wallet, MessageCircle } from 'lucide-react';
+import { 
+  CheckCircle, 
+  Clock, 
+  DollarSign, 
+  Users, 
+  Heart, 
+  Share2, 
+  Wallet, 
+  MessageCircle,
+  Trash2,
+  AlertCircle
+} from 'lucide-react';
 import { formatCurrency, calculateDaysLeft } from '@/utils/formatters';
 import WithdrawalRequestForm from '@/components/WithdrawalRequestForm';
 import WithdrawalRequestsList from '@/components/WithdrawalRequestsList';
@@ -30,12 +41,25 @@ import { createStripeCheckoutSession } from '@/services/donationService';
 import { toast } from '@/components/ui/sonner';
 import { supabase } from '@/integrations/supabase/client';
 import PhantomDonationForm from '@/components/PhantomDonationForm';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 
 const CampaignPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { toast: hookToast } = useToast();
 
   const [donationAmount, setDonationAmount] = useState(50);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -45,6 +69,8 @@ const CampaignPage = () => {
   const [phantomDonationSheetOpen, setPhantomDonationSheetOpen] = useState(false);
   const [donationTab, setDonationTab] = useState('fiat');
   const [shareTooltip, setShareTooltip] = useState('Copy link');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ['campaign', id],
@@ -106,13 +132,40 @@ const CampaignPage = () => {
 
   updateRaisedAmount();
 
- 
-
-  // Setup real-time subscription for campaign updates
+  // Add subscription for new donations notifications
   useEffect(() => {
     if (!id) return;
-
-
+    
+    // Subscribe to donation notifications
+    const unsubscribeFromDonations = subscribeToNewDonations(id, (donation) => {
+      // Show toast notification for new donation
+      const amount = formatCurrency(donation.amount);
+      const name = donation.is_anonymous ? "Anonymous" : "Supporter";
+      
+      hookToast.success(`New donation received!`, {
+        description: `${name} donated ${amount}`
+      });
+      
+      // Also refresh the donations data
+      queryClient.invalidateQueries({ queryKey: ['donations', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+    });
+    
+    // Subscribe to crypto donation notifications
+    const unsubscribeFromCryptoDonations = subscribeToCryptoDonations(id, (donation) => {
+      // Show toast notification for new crypto donation
+      const amount = `${donation.amount} ${donation.token_type}`;
+      const name = donation.is_anonymous ? "Anonymous" : "Supporter";
+      
+      hookToast.success(`New crypto donation received!`, {
+        description: `${name} donated ${amount}`
+      });
+      
+      // Also refresh the crypto donations data
+      queryClient.invalidateQueries({ queryKey: ['cryptoDonations', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', id] });
+    });
+    
     // Subscribe to campaigns table updates
     const channel = supabase
       .channel('campaign-updates')
@@ -191,6 +244,8 @@ const CampaignPage = () => {
       supabase.removeChannel(donationsChannel);
       supabase.removeChannel(cryptoDonationsChannel);
       supabase.removeChannel(commentsChannel);
+      unsubscribeFromDonations();
+      unsubscribeFromCryptoDonations();
     };
   }, [id, queryClient]);
 
@@ -321,6 +376,23 @@ const CampaignPage = () => {
       });
   };
 
+  const handleDeleteCampaign = async () => {
+    if (!campaign || !id) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteCampaign(id);
+      toast.success('Campaign successfully deleted');
+      navigate('/'); // Redirect to home page after deletion
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      toast.error('Failed to delete campaign. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation />
@@ -368,6 +440,33 @@ const CampaignPage = () => {
                     >
                       Edit Campaign
                     </Button>
+
+                    <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm">
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your
+                            campaign and all associated data.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={handleDeleteCampaign}
+                            className="bg-red-600 hover:bg-red-700"
+                            disabled={isDeleting}
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
 
                     <Sheet
                       open={withdrawalSheetOpen}
