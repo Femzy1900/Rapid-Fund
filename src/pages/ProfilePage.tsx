@@ -1,37 +1,40 @@
-
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
 import { getProfile } from '@/services/profileService';
+import { getWithdrawalRequestsByUser } from '@/services/withdrawalService';
+import { getUserCryptoDonations, getUserCryptoWithdrawals } from '@/services/cryptoService';
+import { getDonationsByUser } from '@/services/donationService';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getCampaigns } from '@/services/campaignService';
-import { getDonationsByUser } from '@/services/donationService';
 import { Campaign } from '@/types';
 import CampaignCard from '@/components/CampaignCard';
 
 const ProfilePage = () => {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   
   const { data: profile, isLoading: profileLoading, error: profileError } = useQuery({
-    queryKey: ['profile', id],
-    queryFn: () => id ? getProfile(id) : Promise.reject('No profile ID'),
-    enabled: !!id
+    queryKey: ['profile', user?.id],
+    queryFn: () => getProfile(user!.id),
+    enabled: !!user?.id
   });
   
   const { data: userCampaigns } = useQuery({
-    queryKey: ['userCampaigns', id],
-    queryFn: () => getCampaigns({ userId: id }),
-    enabled: !!id
+    queryKey: ['userCampaigns', user?.id],
+    queryFn: () => getCampaigns({ userId: user?.id }),
+    enabled: !!user?.id
   });
   
   const { data: userDonations } = useQuery({
-    queryKey: ['userDonations', id],
-    queryFn: () => id ? getDonationsByUser(id) : Promise.reject('No profile ID'),
-    enabled: !!id
+    queryKey: ['userDonations', user?.id],
+    queryFn: () => getDonationsByUser(user?.id),
+    enabled: !!user?.id
   });
 
   console.log('Profile', profile)

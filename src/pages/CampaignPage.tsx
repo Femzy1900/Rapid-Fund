@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -142,7 +143,8 @@ const CampaignPage = () => {
       const amount = formatCurrency(donation.amount);
       const name = donation.is_anonymous ? "Anonymous" : "Supporter";
       
-      hookToast.success(`New donation received!`, {
+      hookToast({
+        title: "New donation received!",
         description: `${name} donated ${amount}`
       });
       
@@ -157,7 +159,8 @@ const CampaignPage = () => {
       const amount = `${donation.amount} ${donation.token_type}`;
       const name = donation.is_anonymous ? "Anonymous" : "Supporter";
       
-      hookToast.success(`New crypto donation received!`, {
+      hookToast({
+        title: "New crypto donation received!",
         description: `${name} donated ${amount}`
       });
       

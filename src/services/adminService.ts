@@ -8,7 +8,7 @@ export const getAllCryptoWithdrawals = async () => {
     .select(`
       *,
       campaign:campaign_id (title),
-      profiles:user_id
+      profiles:user_id (full_name)
     `)
     .order('created_at', { ascending: false });
   
@@ -42,6 +42,23 @@ export const updateCryptoWithdrawalStatus = async (id: string, status: 'approved
     .eq('id', id)
     .select()
     .single();
+  
+  if (error) {
+    throw new Error(error.message);
+  }
+  
+  return data;
+};
+
+export const getAllWithdrawalRequests = async () => {
+  const { data, error } = await supabase
+    .from('withdrawal_requests')
+    .select(`
+      *,
+      campaign:campaign_id (title),
+      profiles:user_id (full_name)
+    `)
+    .order('created_at', { ascending: false });
   
   if (error) {
     throw new Error(error.message);
