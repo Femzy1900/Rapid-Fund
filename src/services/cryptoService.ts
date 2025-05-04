@@ -294,6 +294,46 @@ export const sendSolanaTokens = async (
   }
 };
 
+// Mock Solana Web3.js for testing
+const mockSolanaWeb3 = {
+  Transaction: {},
+  PublicKey: function(address: string) {
+    return { toBase58: () => address };
+  },
+  SystemProgram: {
+    transfer: (params: { fromPubkey: any; toPubkey: any; lamports: number }) => ({})
+  }
+};
+
+// Make sure the makeSolanaTransaction function correctly uses the PublicKey
+export const makeSolanaTransaction = async (
+  amount: number,
+  recipientAddress: string
+) => {
+  try {
+    // In a real app, we would use actual Solana web3.js
+    // This is a simplified mock
+    const web3 = window.solanaWeb3 || mockSolanaWeb3;
+    
+    const lamports = amount * 1000000000; // Convert SOL to lamports
+    const fromPubkey = await getConnectedPhantomWallet();
+    const toPubkey = new web3.PublicKey(recipientAddress);
+    
+    const transaction = new web3.Transaction().add(
+      web3.SystemProgram.transfer({
+        fromPubkey,
+        toPubkey,
+        lamports,
+      })
+    );
+    
+    return transaction;
+  } catch (error) {
+    console.error('Error creating Solana transaction:', error);
+    throw new Error('Failed to create Solana transaction');
+  }
+};
+
 export const makeCryptoDonation = async (
   campaignId: string,
   tokenType: string,

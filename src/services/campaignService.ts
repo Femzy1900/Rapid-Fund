@@ -1,80 +1,17 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Campaign } from '@/types';
 
-export const getCampaigns = async (filters?: { 
-  category?: string, 
-  isUrgent?: boolean,
-  isVerified?: boolean,
-  userId?: string,
-  limit?: number,
-  offset?: number,
-  sortBy?: 'newest' | 'oldest' | 'most_funded' | 'least_funded'
-}) => {
-  let query = supabase.from('campaigns').select('*');
-  
-  if (filters?.category && filters.category !== 'all') {
-    query = query.eq('category', filters.category);
-  }
-  
-  if (filters?.isUrgent !== undefined) {
-    query = query.eq('is_urgent', filters.isUrgent);
-  }
-  
-  if (filters?.isVerified !== undefined) {
-    query = query.eq('is_verified', filters.isVerified);
-  }
-  
-  if (filters?.userId) {
-    query = query.eq('user_id', filters.userId);
-  }
-  
-  if (filters?.sortBy) {
-    switch(filters.sortBy) {
-      case 'newest':
-        query = query.order('created_at', { ascending: false });
-        break;
-      case 'oldest':
-        query = query.order('created_at', { ascending: true });
-        break;
-      case 'most_funded':
-        query = query.order('raised_amount', { ascending: false });
-        break;
-      case 'least_funded':
-        query = query.order('raised_amount', { ascending: true });
-        break;
-    }
-  } else {
-    query = query.order('created_at', { ascending: false });
-  }
-  
-  if (filters?.limit) {
-    query = query.limit(filters.limit);
-  }
-  
-  if (filters?.offset !== undefined) {
-    query = query.range(filters.offset, filters.offset + (filters.limit || 10) - 1);
-  }
-  
-  const { data, error } = await query;
+export const getCampaigns = async () => {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select('*')
+    .order('created_at', { ascending: false });
   
   if (error) {
     throw new Error(error.message);
   }
   
   return data as Campaign[];
-};
-
-export const getAllCampaigns = async (
-  page = 1, 
-  pageSize = 10, 
-  sortBy = 'newest'
-) => {
-  return getCampaigns({
-    limit: pageSize,
-    offset: (page - 1) * pageSize,
-    sortBy: sortBy as 'newest' | 'oldest' | 'most_funded' | 'least_funded'
-  });
 };
 
 export const getCampaignById = async (id: string) => {
@@ -91,20 +28,10 @@ export const getCampaignById = async (id: string) => {
   return data as Campaign;
 };
 
-export const createCampaign = async (campaign: Omit<Campaign, 'id' | 'created_at' | 'raised_amount' | 'donors_count'>) => {
+export const createCampaign = async (campaign: Omit<Campaign, 'id' | 'created_at' | 'donors_count' | 'raised_amount'>) => {
   const { data, error } = await supabase
     .from('campaigns')
-    .insert([{
-      title: campaign.title,
-      description: campaign.description,
-      image_url: campaign.image_url,
-      category: campaign.category,
-      is_verified: campaign.is_verified,
-      is_urgent: campaign.is_urgent,
-      target_amount: campaign.target_amount,
-      expires_at: campaign.expires_at,
-      user_id: campaign.user_id
-    }])
+    .insert([campaign])
     .select()
     .single();
   
@@ -130,11 +57,11 @@ export const updateCampaign = async (id: string, updates: Partial<Campaign>) => 
   return data as Campaign;
 };
 
-export const deleteCampaign = async (id: string) => {
+export const deleteCampaign = async (campaignId: string) => {
   const { error } = await supabase
     .from('campaigns')
     .delete()
-    .eq('id', id);
+    .eq('id', campaignId);
   
   if (error) {
     throw new Error(error.message);
