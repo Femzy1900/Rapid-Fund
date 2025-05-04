@@ -60,7 +60,7 @@ export const getAllWithdrawalRequests = async () => {
     .select(`
       *,
       campaign:campaign_id (title),
-      profiles:user_id (full_name) 
+      user_id
     `)
     .order('created_at', { ascending: false });
 
@@ -87,6 +87,7 @@ export const updateWithdrawalRequestStatus = async (id: string, status: 'approve
     .single();
   
   if (error) {
+    console.log(error.message);
     throw new Error(error.message);
   }
   
