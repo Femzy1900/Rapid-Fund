@@ -33,7 +33,10 @@ const ProfilePage = () => {
     queryFn: () => id ? getDonationsByUser(id) : Promise.reject('No profile ID'),
     enabled: !!id
   });
-  
+
+  console.log('Profile', profile)
+  console.log('User Campaigns', userCampaigns)
+  console.log('User Donations', userDonations)  
   const getInitials = (name?: string) => {
     if (!name) return 'U';
     return name
@@ -116,13 +119,13 @@ const ProfilePage = () => {
                 <div className="flex flex-row md:flex-col gap-4 md:gap-2 text-center">
                   <div>
                     <div className="text-2xl font-bold text-blue-600">
-                      {profile.campaigns_created}
+                      {userCampaigns ? userCampaigns.length : 0}
                     </div>
                     <div className="text-sm text-gray-500">Campaigns</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold text-green-600">
-                      {formatCurrency(profile.total_donated)}
+                      {formatCurrency(userDonations?.reduce((acc: number, donation: any) => acc + donation.amount, 0) || 0)}
                     </div>
                     <div className="text-sm text-gray-500">Donated</div>
                   </div>
