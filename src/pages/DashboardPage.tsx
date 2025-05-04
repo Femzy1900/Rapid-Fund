@@ -66,9 +66,7 @@ const DashboardPage = () => {
     enabled: !!user
   });
   
-  console.log('User Donation:', userDonations);
-  console.log('User Campaigns:', userCampaigns);
-  console.log('Campaigns Donations:', campaignDonation);
+
   if (!user) {
     return null;
   }

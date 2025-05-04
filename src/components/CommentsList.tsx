@@ -20,7 +20,6 @@ const CommentsList = ({ comments, campaignId, isLoading }: CommentsListProps) =>
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  console.log('CommentsList', comments);
   
   const handleDeleteComment = async (commentId: string) => {
     try {

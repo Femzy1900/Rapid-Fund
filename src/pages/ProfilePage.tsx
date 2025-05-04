@@ -37,9 +37,7 @@ const ProfilePage = () => {
     enabled: !!user?.id
   });
 
-  console.log('Profile', profile)
-  console.log('User Campaigns', userCampaigns)
-  console.log('User Donations', userDonations)  
+
   const getInitials = (name?: string) => {
     if (!name) return 'U';
     return name
