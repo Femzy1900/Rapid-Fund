@@ -19,6 +19,8 @@ interface CommentsListProps {
 const CommentsList = ({ comments, campaignId, isLoading }: CommentsListProps) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  console.log('CommentsList', comments);
   
   const handleDeleteComment = async (commentId: string) => {
     try {
@@ -57,7 +59,7 @@ const CommentsList = ({ comments, campaignId, isLoading }: CommentsListProps) =>
               <div className="flex-1">
                 <div className="flex justify-between">
                   <p className="font-medium">
-                    {comment.user?.full_name || 'Anonymous User'}
+                    {comment.profiles?.full_name || 'Anonymous User'}
                   </p>
                   <div className="flex items-center">
                     <span className="text-xs text-gray-500">
