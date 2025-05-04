@@ -42,17 +42,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            full_name: fullName,
+            full_name: fullName, // stored in auth.users.user_metadata
           },
         },
       });
-      
+  
       if (error) throw error;
+  
+      const user = signUpData.user;
+  
+      if (user) {
+        // Check if profile already exists
+        const { data: profile, error: fetchError } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+  
+        if (fetchError && fetchError.code === 'PGRST116') {
+          // No profile found — insert a new one
+          const { error: insertError } = await supabase.from('profiles').insert({
+            id: user.id,
+            full_name: fullName,
+            email: user.email,
+          });
+  
+          if (insertError) throw insertError;
+        } else if (!fetchError && profile?.full_name === null) {
+          // Profile exists but full_name is null — update it
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ full_name: fullName })
+            .eq('id', user.id);
+  
+          if (updateError) throw updateError;
+        }
+      }
+  
       toast({
         title: "Account created",
         description: "Please check your email for confirmation",
@@ -66,15 +97,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw error;
     }
   };
+  
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
+  
       if (error) throw error;
+  
+      const user = data.user;
+      const fullName = user?.user_metadata?.full_name;
+  
+      if (user && fullName) {
+        // Check if full_name is null in profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+  
+        if (!profileError && profile?.full_name === null) {
+          // Update full_name only if it's currently null
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ full_name: fullName })
+            .eq('id', user.id);
+  
+          if (updateError) throw updateError;
+        }
+      }
+  
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in",
@@ -88,6 +143,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw error;
     }
   };
+  
 
   const signOut = async () => {
     try {
@@ -121,3 +177,8 @@ export const useAuth = () => {
   }
   return context;
 };
+
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+console.log("Username",user?.user_metadata); // should contain full_name
