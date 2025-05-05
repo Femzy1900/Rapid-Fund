@@ -20,8 +20,8 @@ const ProfilePage = () => {
   const { id } = useParams<{ id: string }>();
   
   const { data: profile, isLoading: profileLoading, error: profileError } = useQuery({
-    queryKey: ['profile'],
-    queryFn: () => getProfile(),
+    queryKey: ['profile', user?.id],
+    queryFn: () => getProfile(user?.id),
     enabled: !!user
   });
   
@@ -36,7 +36,6 @@ const ProfilePage = () => {
     queryFn: () => getDonationsByUser(user?.id),
     enabled: !!user?.id
   });
-
 
   const getInitials = (name?: string) => {
     if (!name) return 'U';

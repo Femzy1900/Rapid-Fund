@@ -1,87 +1,117 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Comment } from '@/types';
-import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Trash2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { deleteComment } from '@/services/commentService';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { toast } from '@/components/ui/sonner';
 
 interface CommentsListProps {
   comments: Comment[];
   campaignId: string;
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
 const CommentsList = ({ comments, campaignId, isLoading }: CommentsListProps) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
   
-  const handleDeleteComment = async (commentId: string) => {
-    try {
-      await deleteComment(commentId);
-      toast.success('Comment deleted');
+  const deleteMutation = useMutation({
+    mutationFn: deleteComment,
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', campaignId] });
-    } catch (error) {
-      toast.error('Failed to delete comment');
-      console.error('Error deleting comment:', error);
+      toast.success('Comment deleted successfully');
+      setDeleteDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to delete comment', {
+        description: error.message
+      });
+    }
+  });
+
+  const handleDelete = async () => {
+    if (commentToDelete) {
+      deleteMutation.mutate(commentToDelete);
     }
   };
-  
+
+  const openDeleteDialog = (commentId: string) => {
+    setCommentToDelete(commentId);
+    setDeleteDialogOpen(true);
+  };
+
   if (isLoading) {
     return <div className="text-center py-4">Loading comments...</div>;
   }
-  
-  if (!comments?.length) {
-    return <div className="text-center py-4 text-gray-500">No comments yet. Be the first to comment!</div>;
+
+  if (comments.length === 0) {
+    return <div className="text-center py-4 text-gray-500">No comments yet. Be the first to leave a message!</div>;
   }
-  
-  const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric'
+    });
   };
-  
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <h3 className="text-lg font-medium">Comments ({comments.length})</h3>
       {comments.map((comment) => (
-        <Card key={comment.id} className="overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex gap-3">
-              <Avatar>
-                <AvatarImage src={comment.user?.avatar_url || ''} alt={comment.user?.full_name || 'User'} />
-                <AvatarFallback>{getInitials(comment.user?.full_name)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <div className="flex justify-between">
-                  <p className="font-medium">
-                    {comment.profiles?.full_name || 'Anonymous User'}
-                  </p>
-                  <div className="flex items-center">
-                    <span className="text-xs text-gray-500">
-                      {new Date(comment.created_at).toLocaleDateString()}
-                    </span>
-                    {(user?.id === comment.user_id) && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 w-8 p-0 ml-2"
-                        onClick={() => handleDeleteComment(comment.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <p className="text-gray-700 mt-1 whitespace-pre-line">{comment.content}</p>
-              </div>
+        <div key={comment.id} className="pb-4 border-b last:border-b-0">
+          <div className="flex justify-between">
+            <span className="font-medium">
+              {(comment as any).profiles?.full_name || 'Anonymous'}
+            </span>
+            <span className="text-sm text-gray-500">
+              {formatDate(comment.created_at)}
+            </span>
+          </div>
+          <p className="mt-2 text-gray-700">{comment.content}</p>
+          
+          {user?.id === comment.user_id && (
+            <div className="mt-2 flex justify-end">
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={() => openDeleteDialog(comment.id)}
+              >
+                Delete
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       ))}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your comment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
