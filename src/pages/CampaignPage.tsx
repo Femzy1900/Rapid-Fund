@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -79,9 +78,9 @@ const CampaignPage = () => {
     enabled: !!id
   });
 
-  const { data: donations, isLoading: donationsLoading } = useQuery({
+  const { data: campaignDonations, isLoading: donationsLoading } = useQuery({
     queryKey: ['donations', id],
-    queryFn: () => getDonationsByCampaign(id as string),
+    queryFn: () => getDonationsByCampaign(campaign?.id as string),
     enabled: !!id
   });
 
@@ -109,33 +108,51 @@ const CampaignPage = () => {
     enabled: !!id
   });
 
-  const { data: campaignDonation } = useQuery({
-    queryKey: ['donations', user?.id],
-    queryFn: () => user ? getDonationsByCampaign(campaign.id) : Promise.reject('Not authenticated'),
-    enabled: !!user
-  });
+  // const { data: campaignDonation } = useQuery({
+  //   queryKey: ['donations', user?.id],
+  //   queryFn: () => user ? getDonationsByCampaign(campaign.id) : Promise.reject('Not authenticated'),
+  //   enabled: !!user
+  // });
 
   console.log('Campaign:', campaign);
-  console.log('Donations:', donations); 
-  console.log('Campaign Donation:', campaignDonation);
+
+  console.log('Campaign Donation:', campaignDonations);
 
   // Calculate total donations and donors  
-  const totalRaised = campaignDonation?.reduce((sum: number, donation: Donation) =>
+  const totalRaised = campaignDonations?.reduce((sum: number, donation: Donation) =>
     sum + (donation.amount || 0), 0) || 0;
-  const totalDonors = campaignDonation?.length || 0;
+  const totalDonors = campaignDonations?.length || 0;
 
-  // Update campaign.raised_amount with totalRaised
-  const updateRaisedAmount = async () => {
+  // Update campaign.raised_amount and donors_count with totalRaised and totalDonors
+  const updateRaisedAmountAndDonorsCount = async () => {
     if (campaign) {
-      campaign.raised_amount = totalRaised;
-      await supabase
-        .from('campaigns')
-        .update({ raised_amount: totalRaised, donors_count: totalDonors })
-        .eq('id', campaign.id);
+      try {
+
+        campaign.raised_amount = totalRaised;
+        campaign.donors_count = totalDonors;
+
+        const { data, error } = await supabase
+          .from('campaigns')
+          .update({ 
+            raised_amount: totalRaised,
+            donors_count: totalDonors
+          })
+          .eq('id', campaign.id);
+
+        if (error) {
+          console.error('Failed to update raised_amount and donors_count in the database:', error);
+          throw new Error('Database update failed');
+        }
+
+      } catch (err) {
+        console.error('Error updating raised_amount and donors_count:', err);
+      }
+    } else {
+      console.error('Campaign object is null or undefined');
     }
   };
 
-  updateRaisedAmount();
+  updateRaisedAmountAndDonorsCount();
 
   // Add subscription for new donations notifications
   useEffect(() => {
@@ -590,9 +607,9 @@ const CampaignPage = () => {
                       <CardContent>
                         {donationsLoading ? (
                           <div className="text-center py-4">Loading donations...</div>
-                        ) : donations && donations.length > 0 ? (
+                        ) : campaignDonations && campaignDonations.length > 0 ? (
                           <div className="space-y-4">
-                            {donations.map((donation: Donation) => (
+                            {campaignDonations.map((donation: Donation) => (
                               <div key={donation.id} className="pb-4 border-b last:border-0">
                                 <div className="flex justify-between items-start">
                                   <div>
