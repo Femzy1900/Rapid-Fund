@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Donation } from '@/types';
 
@@ -139,24 +138,25 @@ export const subscribeToCryptoDonations = (campaignId: string, onNewDonation: (d
 };
 
 // Get all donations for campaigns owned by a user
-export const getUnreadDonationNotifications = async (userId: string) => {
-  // First get campaigns owned by the user
+export const getUnreadDonationNotifications = async (userId: string, limit = 10) => {
+  // First, get all campaigns owned by the user
   const { data: campaigns, error: campaignsError } = await supabase
     .from('campaigns')
     .select('id')
     .eq('user_id', userId);
-  
+
   if (campaignsError) {
-    throw new Error(campaignsError.message);
+    throw new Error(`Failed to fetch campaigns: ${campaignsError.message}`);
   }
-  
-  if (!campaigns?.length) {
+
+  const campaignIds = (campaigns ?? []).map((c) => c.id).filter(Boolean);
+  if (campaignIds.length === 0) {
     return [];
   }
-  
-  const campaignIds = campaigns.map(campaign => campaign.id);
-  
-  // Get recent donations for these campaigns
+
+  console.log('Campaign IDs:', campaignIds);
+
+  // Get donations for these campaigns
   const { data: donations, error: donationsError } = await supabase
     .from('donations')
     .select(`
@@ -166,24 +166,39 @@ export const getUnreadDonationNotifications = async (userId: string) => {
       message,
       created_at,
       campaign_id,
-      user_id,
-      campaigns (
-        title
-      ),
-      profiles (
-        full_name
-      )
+      user_id
     `)
-    .in('campaign_id', campaignIds)
+    .in('campaign_id', campaignIds)  // Get donations for all campaigns
     .order('created_at', { ascending: false })
-    .limit(10);
-  
+    .limit(limit);
+
   if (donationsError) {
     throw new Error(donationsError.message);
   }
-  
-  return donations;
+
+  // Now, fetch user details for each donation
+  const donationsWithUserDetails = await Promise.all(
+    donations.map(async (donation) => {
+      const { data: userProfile, error: userError } = await supabase
+        .from('profiles')
+        .select('id, full_name')  // Assuming 'full_name' and 'email' are the fields
+        .eq('id', donation.user_id)
+        .single(); // Since each user_id is unique, we only need one result
+
+      if (userError) {
+        console.error(`Failed to fetch user details for user ${donation.user_id}: ${userError.message}`);
+      }
+
+      return {
+        ...donation,
+        user: userProfile || null, // Attach the user details to the donation
+      };
+    })
+  );
+
+  return donationsWithUserDetails;
 };
+
 
 // Use proper return type for the subscription function
 export const subscribeToOwnedCampaignDonations = (userId: string, onNewDonation: (donation: any) => void) => {

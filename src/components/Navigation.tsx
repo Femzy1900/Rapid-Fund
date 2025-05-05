@@ -25,7 +25,12 @@ const Navigation = () => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notificationsCount, setNotificationsCount] = useState(0);
-  
+
+  // Function to reset notifications count to zero
+  const handleNotificationClick = () => {
+    setNotificationsCount(0);
+  };
+
   // Check if user is admin
   const { data: isAdmin } = useQuery({
     queryKey: ['isAdmin', user?.id],
@@ -46,7 +51,7 @@ const Navigation = () => {
       setNotificationsCount(notifications.length);
     }
   }, [notifications]);
-  
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -59,7 +64,7 @@ const Navigation = () => {
 
   const getDonorName = (donation: any) => {
     if (donation.is_anonymous) return 'Anonymous';
-    return donation.profiles?.full_name || 'A supporter';
+    return donation.user?.full_name || 'A supporter';
   };
 
   const navLinks = [
@@ -97,7 +102,7 @@ const Navigation = () => {
               <>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="relative">
+                    <Button variant="ghost" size="icon" className="relative" onClick={handleNotificationClick}>
                       {notificationsCount > 0 ? (
                         <BellDot className="h-5 w-5 text-blue-500" />
                       ) : (
@@ -129,7 +134,7 @@ const Navigation = () => {
                             <div className="mt-1">
                               <span className="text-green-600 font-medium">{formatCurrency(donation.amount)}</span>
                               {' '}to{' '}
-                              <Link 
+                              <Link
                                 to={`/campaigns/${donation.campaign_id}`}
                                 className="text-blue-600 hover:underline"
                               >
@@ -159,7 +164,7 @@ const Navigation = () => {
                     )}
                   </PopoverContent>
                 </Popover>
-                
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -239,7 +244,7 @@ const Navigation = () => {
                           <div className="mt-1">
                             <span className="text-green-600 font-medium">{formatCurrency(donation.amount)}</span>
                             {' '}to{' '}
-                            <Link 
+                            <Link
                               to={`/campaigns/${donation.campaign_id}`}
                               className="text-blue-600 hover:underline"
                             >
@@ -255,7 +260,7 @@ const Navigation = () => {
                   )}
                   {notifications.length > 0 && (
                     <div className="p-2 border-t bg-gray-50">
-                      <Button 
+                      <Button
                         variant="ghost"
                         className="w-full py-2 text-center text-sm text-blue-600 hover:underline"
                         onClick={() => {
@@ -327,7 +332,7 @@ const Navigation = () => {
                         </Button>
                       </>
                     ) : (
-                      <Button 
+                      <Button
                         onClick={() => {
                           navigate('/auth');
                           setIsMobileMenuOpen(false);
