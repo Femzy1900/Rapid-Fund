@@ -40,13 +40,12 @@ const DashboardPage = () => {
     }
   }, [user, navigate]);
   
-  const { data: profile } = useQuery({
-    queryKey: ['profile', user?.id],
-    queryFn: () => user ? getProfile(user.id) : Promise.reject('Not authenticated'),
+  // Using the correct signature for getProfile
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: () => getProfile(),
     enabled: !!user
   });
-
-
 
   const { data: userCampaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['userCampaigns', user?.id],

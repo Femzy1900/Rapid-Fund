@@ -20,9 +20,9 @@ const ProfilePage = () => {
   const { id } = useParams<{ id: string }>();
   
   const { data: profile, isLoading: profileLoading, error: profileError } = useQuery({
-    queryKey: ['profile', user?.id],
-    queryFn: () => getProfile(user!.id),
-    enabled: !!user?.id
+    queryKey: ['profile'],
+    queryFn: () => getProfile(),
+    enabled: !!user
   });
   
   const { data: userCampaigns } = useQuery({

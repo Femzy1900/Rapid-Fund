@@ -2,7 +2,8 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/sonner';
+import { subscribeToOwnedCampaignDonations } from '@/services/donationService';
 
 type AuthContextType = {
   user: User | null;
@@ -19,6 +20,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Set up donation notifications
+  useEffect(() => {
+    let cleanupSubscription = () => {};
+    
+    if (user) {
+      cleanupSubscription = subscribeToOwnedCampaignDonations(user.id, (donation) => {
+        // Show donation notification
+        const campaignTitle = donation.campaigns?.title || 'your campaign';
+        const donorName = donation.is_anonymous ? 
+          'Anonymous' : (donation.profiles?.full_name || 'Someone');
+        const amount = new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD'
+        }).format(donation.amount);
+        
+        toast.success(`New donation received!`, {
+          description: `${donorName} donated ${amount} to ${campaignTitle}`,
+          duration: 6000
+        });
+      });
+    }
+    
+    return () => {
+      if (typeof cleanupSubscription === 'function') {
+        cleanupSubscription();
+      }
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     // Set up auth state listener first
@@ -177,8 +207,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-const {
-  data: { user },
-} = await supabase.auth.getUser();
-console.log("Username",user?.user_metadata); // should contain full_name

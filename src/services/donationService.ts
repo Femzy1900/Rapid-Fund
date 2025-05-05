@@ -96,7 +96,7 @@ export const processDonationFromStripe = async (sessionId: string) => {
   return data;
 };
 
-// New function to handle donation notifications
+// Subscribe to new donations for a campaign
 export const subscribeToNewDonations = (campaignId: string, onNewDonation: (donation: any) => void) => {
   const channel = supabase
     .channel(`campaign-donations-${campaignId}`)
@@ -136,4 +136,120 @@ export const subscribeToCryptoDonations = (campaignId: string, onNewDonation: (d
   return () => {
     supabase.removeChannel(channel);
   };
+};
+
+// Get all unread notifications for a user
+export const getUnreadDonationNotifications = async (userId: string) => {
+  // First get campaigns owned by the user
+  const { data: campaigns, error: campaignsError } = await supabase
+    .from('campaigns')
+    .select('id')
+    .eq('user_id', userId);
+  
+  if (campaignsError) {
+    throw new Error(campaignsError.message);
+  }
+  
+  if (!campaigns?.length) {
+    return [];
+  }
+  
+  const campaignIds = campaigns.map(campaign => campaign.id);
+  
+  // Get recent donations for these campaigns
+  const { data: donations, error: donationsError } = await supabase
+    .from('donations')
+    .select(`
+      id,
+      amount,
+      is_anonymous,
+      message,
+      created_at,
+      campaign_id,
+      user_id,
+      campaigns (
+        title
+      ),
+      profiles (
+        full_name
+      )
+    `)
+    .in('campaign_id', campaignIds)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  
+  if (donationsError) {
+    throw new Error(donationsError.message);
+  }
+  
+  return donations;
+};
+
+// Subscribe to donations for campaigns owned by user
+export const subscribeToOwnedCampaignDonations = (userId: string, onNewDonation: (donation: any) => void) => {
+  // First get campaigns owned by the user
+  return supabase
+    .from('campaigns')
+    .select('id')
+    .eq('user_id', userId)
+    .then(({ data: campaigns, error }) => {
+      if (error) {
+        console.error('Error fetching campaigns:', error);
+        return () => {};
+      }
+      
+      if (!campaigns?.length) {
+        return () => {};
+      }
+      
+      const campaignIds = campaigns.map(campaign => campaign.id);
+      
+      // Now set up subscription for each campaign
+      const channels = campaignIds.map(campaignId => {
+        const channel = supabase
+          .channel(`owner-donations-${campaignId}`)
+          .on('postgres_changes', 
+            { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'donations',
+              filter: `campaign_id=eq.${campaignId}`
+            }, 
+            async payload => {
+              // Get full donation details
+              const { data, error } = await supabase
+                .from('donations')
+                .select(`
+                  id,
+                  amount,
+                  is_anonymous,
+                  message,
+                  created_at,
+                  campaign_id,
+                  user_id,
+                  campaigns (
+                    title
+                  ),
+                  profiles (
+                    full_name
+                  )
+                `)
+                .eq('id', payload.new.id)
+                .single();
+              
+              if (!error && data) {
+                onNewDonation(data);
+              } else {
+                onNewDonation(payload.new);
+              }
+            })
+          .subscribe();
+          
+        return channel;
+      });
+      
+      return () => {
+        channels.forEach(channel => supabase.removeChannel(channel));
+      };
+    });
 };
