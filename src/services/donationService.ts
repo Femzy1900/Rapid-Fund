@@ -138,7 +138,7 @@ export const subscribeToCryptoDonations = (campaignId: string, onNewDonation: (d
   };
 };
 
-// Get all unread notifications for a user
+// Get all donations for campaigns owned by a user
 export const getUnreadDonationNotifications = async (userId: string) => {
   // First get campaigns owned by the user
   const { data: campaigns, error: campaignsError } = await supabase
@@ -188,72 +188,71 @@ export const getUnreadDonationNotifications = async (userId: string) => {
 // Use proper return type for the subscription function
 export const subscribeToOwnedCampaignDonations = (userId: string, onNewDonation: (donation: any) => void) => {
   // First get campaigns owned by the user
-  const campaignsPromise = supabase
+  supabase
     .from('campaigns')
     .select('id')
-    .eq('user_id', userId);
-  
-  campaignsPromise.then(({ data: campaigns, error }) => {
-    if (error) {
-      console.error('Error fetching campaigns:', error);
-      return;
-    }
-    
-    if (!campaigns?.length) {
-      return;
-    }
-    
-    const campaignIds = campaigns.map(campaign => campaign.id);
-    
-    // Now set up subscription for each campaign
-    const channels = campaignIds.map(campaignId => {
-      const channel = supabase
-        .channel(`owner-donations-${campaignId}`)
-        .on('postgres_changes', 
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'donations',
-            filter: `campaign_id=eq.${campaignId}`
-          }, 
-          async payload => {
-            // Get full donation details
-            const { data, error } = await supabase
-              .from('donations')
-              .select(`
-                id,
-                amount,
-                is_anonymous,
-                message,
-                created_at,
-                campaign_id,
-                user_id,
-                campaigns (
-                  title
-                ),
-                profiles (
-                  full_name
-                )
-              `)
-              .eq('id', payload.new.id)
-              .single();
-            
-            if (!error && data) {
-              onNewDonation(data);
-            } else {
-              onNewDonation(payload.new);
-            }
-          })
-        .subscribe();
-        
-      return channel;
+    .eq('user_id', userId)
+    .then(({ data: campaigns, error }) => {
+      if (error) {
+        console.error('Error fetching campaigns:', error);
+        return;
+      }
+      
+      if (!campaigns?.length) {
+        return;
+      }
+      
+      const campaignIds = campaigns.map(campaign => campaign.id);
+      
+      // Now set up subscription for each campaign
+      const channels = campaignIds.map(campaignId => {
+        const channel = supabase
+          .channel(`owner-donations-${campaignId}`)
+          .on('postgres_changes', 
+            { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'donations',
+              filter: `campaign_id=eq.${campaignId}`
+            }, 
+            async payload => {
+              // Get full donation details
+              const { data, error } = await supabase
+                .from('donations')
+                .select(`
+                  id,
+                  amount,
+                  is_anonymous,
+                  message,
+                  created_at,
+                  campaign_id,
+                  user_id,
+                  campaigns (
+                    title
+                  ),
+                  profiles (
+                    full_name
+                  )
+                `)
+                .eq('id', payload.new.id)
+                .single();
+              
+              if (!error && data) {
+                onNewDonation(data);
+              } else {
+                onNewDonation(payload.new);
+              }
+            })
+          .subscribe();
+          
+        return channel;
+      });
+      
+      // Return cleanup function that will be called when component unmounts
+      return () => {
+        channels.forEach(channel => supabase.removeChannel(channel));
+      };
     });
-    
-    // Return cleanup function
-    return () => {
-      channels.forEach(channel => supabase.removeChannel(channel));
-    };
-  });
   
   // Return a function that cleans up any resources
   return () => {

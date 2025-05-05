@@ -2,7 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/components/ui/sonner';
+import { toast } from '@/hooks/use-toast';
 import { subscribeToOwnedCampaignDonations } from '@/services/donationService';
 
 type AuthContextType = {
@@ -36,7 +36,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           currency: 'USD'
         }).format(donation.amount);
         
-        toast.success(`New donation received!`, {
+        toast({
+          title: "New donation received!",
           description: `${donorName} donated ${amount} to ${campaignTitle}`
         });
       });
@@ -110,13 +111,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (updateError) throw updateError;
         }
       }
-  
-      toast.success("Account created", {
+      
+      toast({
+        title: "Account created",
         description: "Please check your email for confirmation"
       });
     } catch (error: any) {
-      toast.error("Error", {
-        description: error.message || "An error occurred during sign up"
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred during sign up",
+        variant: "destructive"
       });
       throw error;
     }
@@ -154,12 +158,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
   
-      toast.success("Welcome back!", {
+      toast({
+        title: "Welcome back!",
         description: "You have successfully signed in"
       });
     } catch (error: any) {
-      toast.error("Error", {
-        description: error.message || "An error occurred during sign in"
+      toast({
+        title: "Error", 
+        description: error.message || "An error occurred during sign in",
+        variant: "destructive"
       });
       throw error;
     }
@@ -170,12 +177,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      toast.success("Signed out", {
+      toast({
+        title: "Signed out",
         description: "You have successfully signed out"
       });
     } catch (error: any) {
-      toast.error("Error", {
-        description: error.message || "An error occurred during sign out"
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred during sign out",
+        variant: "destructive"
       });
       throw error;
     }

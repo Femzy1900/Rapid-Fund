@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Menu, X, Heart, Bell } from 'lucide-react';
+import { Menu, X, Heart, Bell, BellDot } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -34,7 +34,7 @@ const Navigation = () => {
   });
 
   // Get recent donation notifications
-  const { data: notifications = [] } = useQuery({
+  const { data: notifications = [], refetch: refetchNotifications } = useQuery({
     queryKey: ['donationNotifications', user?.id],
     queryFn: () => user ? getUnreadDonationNotifications(user.id) : Promise.resolve([]),
     enabled: !!user,
@@ -98,7 +98,11 @@ const Navigation = () => {
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="ghost" size="icon" className="relative">
-                      <Bell className="h-5 w-5" />
+                      {notificationsCount > 0 ? (
+                        <BellDot className="h-5 w-5 text-blue-500" />
+                      ) : (
+                        <Bell className="h-5 w-5" />
+                      )}
                       {notificationsCount > 0 && (
                         <span className="absolute top-0 right-0 h-4 w-4 text-xs flex items-center justify-center rounded-full bg-red-500 text-white">
                           {notificationsCount > 9 ? '9+' : notificationsCount}
@@ -141,9 +145,16 @@ const Navigation = () => {
                     )}
                     {notifications.length > 0 && (
                       <div className="p-2 border-t bg-gray-50">
-                        <Link to="/dashboard" className="block w-full py-2 text-center text-sm text-blue-600 hover:underline">
-                          View all in dashboard
-                        </Link>
+                        <Button
+                          variant="ghost"
+                          className="w-full py-2 text-center text-sm text-blue-600 hover:underline"
+                          onClick={() => {
+                            // Clear notifications or mark as read in the future
+                            refetchNotifications();
+                          }}
+                        >
+                          Refresh notifications
+                        </Button>
                       </div>
                     )}
                   </PopoverContent>
@@ -197,7 +208,11 @@ const Navigation = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative mr-2">
-                    <Bell className="h-5 w-5" />
+                    {notificationsCount > 0 ? (
+                      <BellDot className="h-5 w-5 text-blue-500" />
+                    ) : (
+                      <Bell className="h-5 w-5" />
+                    )}
                     {notificationsCount > 0 && (
                       <span className="absolute top-0 right-0 h-4 w-4 text-xs flex items-center justify-center rounded-full bg-red-500 text-white">
                         {notificationsCount > 9 ? '9+' : notificationsCount}
@@ -240,9 +255,16 @@ const Navigation = () => {
                   )}
                   {notifications.length > 0 && (
                     <div className="p-2 border-t bg-gray-50">
-                      <Link to="/dashboard" className="block w-full py-2 text-center text-sm text-blue-600 hover:underline">
-                        View all in dashboard
-                      </Link>
+                      <Button 
+                        variant="ghost"
+                        className="w-full py-2 text-center text-sm text-blue-600 hover:underline"
+                        onClick={() => {
+                          // Clear notifications or mark as read in the future
+                          refetchNotifications();
+                        }}
+                      >
+                        Refresh notifications
+                      </Button>
                     </div>
                   )}
                 </PopoverContent>
