@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -12,24 +13,18 @@ const AllCampaignsPage = () => {
   const categoryFilter = searchParams.get('category');
   const urgentFilter = searchParams.get('urgent') === 'true';
 
+  // Fix the query to provide filters in the right format
   const { data: campaigns, isLoading } = useQuery({
-    queryKey: ['campaigns'],
-    queryFn: getCampaigns
+    queryKey: ['campaigns', { category: categoryFilter, isUrgent: urgentFilter }],
+    queryFn: () => getCampaigns({
+      category: categoryFilter || undefined,
+      isUrgent: urgentFilter
+    })
   });
 
   const filteredCampaigns = React.useMemo(() => {
-    let filtered = campaigns || [];
-
-    if (categoryFilter) {
-      filtered = filtered.filter(campaign => campaign.category === categoryFilter);
-    }
-
-    if (urgentFilter) {
-      filtered = filtered.filter(campaign => campaign.is_urgent);
-    }
-
-    return filtered;
-  }, [campaigns, categoryFilter, urgentFilter]);
+    return campaigns || [];
+  }, [campaigns]);
 
   if (isLoading) {
     return (

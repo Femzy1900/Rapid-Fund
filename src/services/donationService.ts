@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Donation } from '@/types';
 
@@ -139,7 +138,11 @@ export const subscribeToCryptoDonations = (campaignId: string, onNewDonation: (d
 };
 
 // Get all donations for campaigns owned by a user
-export const getUnreadDonationNotifications = async (userId: string) => {
+export const getUnreadDonationNotifications = async (userId: string | undefined) => {
+  if (!userId) {
+    return [];
+  }
+  
   // First get campaigns owned by the user
   const { data: campaigns, error: campaignsError } = await supabase
     .from('campaigns')
@@ -186,7 +189,11 @@ export const getUnreadDonationNotifications = async (userId: string) => {
 };
 
 // Use proper return type for the subscription function
-export const subscribeToOwnedCampaignDonations = (userId: string, onNewDonation: (donation: any) => void) => {
+export const subscribeToOwnedCampaignDonations = (userId: string | undefined, onNewDonation: (donation: any) => void) => {
+  if (!userId) {
+    return () => {}; // Return empty cleanup function if no userId
+  }
+  
   // First get campaigns owned by the user
   supabase
     .from('campaigns')
