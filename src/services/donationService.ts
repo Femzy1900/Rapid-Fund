@@ -201,7 +201,11 @@ export const getUnreadDonationNotifications = async (userId: string, limit = 10)
 
 
 // Use proper return type for the subscription function
-export const subscribeToOwnedCampaignDonations = (userId: string, onNewDonation: (donation: any) => void) => {
+export const subscribeToOwnedCampaignDonations = (userId: string | undefined, onNewDonation: (donation: any) => void) => {
+  if (!userId) {
+    return () => {}; // Return empty cleanup function if no userId
+  }
+  
   // First get campaigns owned by the user
   supabase
     .from('campaigns')
