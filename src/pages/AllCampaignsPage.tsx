@@ -15,16 +15,23 @@ const AllCampaignsPage = () => {
 
   // Fix the query to provide filters in the right format
   const { data: campaigns, isLoading } = useQuery({
-    queryKey: ['campaigns', { category: categoryFilter, isUrgent: urgentFilter }],
-    queryFn: () => getCampaigns({
-      category: categoryFilter || undefined,
-      isUrgent: urgentFilter
-    })
+    queryKey: ['campaigns'],
+    queryFn: getCampaigns
   });
 
   const filteredCampaigns = React.useMemo(() => {
-    return campaigns || [];
-  }, [campaigns]);
+    let filtered = campaigns || [];
+
+    if (categoryFilter) {
+      filtered = filtered.filter(campaign => campaign.category === categoryFilter);
+    }
+
+    if (urgentFilter) {
+      filtered = filtered.filter(campaign => campaign.is_urgent);
+    }
+
+    return filtered;
+  }, [campaigns, categoryFilter, urgentFilter]);
 
   if (isLoading) {
     return (
