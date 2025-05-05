@@ -83,6 +83,7 @@ const CampaignPage = () => {
     queryFn: () => getDonationsByCampaign(campaign?.id as string),
     enabled: !!id
   });
+  console.log('Campaign Donations:', campaignDonations);
 
   const { data: cryptoDonations, isLoading: cryptoDonationsLoading } = useQuery({
     queryKey: ['cryptoDonations', id],

@@ -171,7 +171,7 @@ const AuthPage = () => {
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              <TabsTrigger value="reset">Reset</TabsTrigger>
+              <TabsTrigger value="reset">Forgot Password</TabsTrigger>
             </TabsList>
             
             <TabsContent value="signin">
@@ -217,7 +217,7 @@ const AuthPage = () => {
                     >
                       {isLoading ? 'Signing in...' : 'Sign In'}
                     </Button>
-                    <Button
+                    {/* <Button
                       type="button"
                       variant="link"
                       className="text-sm text-blue-600 hover:text-blue-800"
@@ -227,7 +227,7 @@ const AuthPage = () => {
                       }}
                     >
                       Forgot your password?
-                    </Button>
+                    </Button> */}
                   </CardFooter>
                 </form>
               </Card>
@@ -330,7 +330,7 @@ const AuthPage = () => {
                 ) : (
                   <form onSubmit={handleResetPassword}>
                     <CardHeader>
-                      <CardTitle>Reset Password</CardTitle>
+                      <CardTitle>Forgot Password</CardTitle>
                       <CardDescription>
                         Enter your email to receive a password reset link
                       </CardDescription>

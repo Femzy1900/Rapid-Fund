@@ -11,7 +11,7 @@ export const getDonationsByCampaign = async (campaignId: string, limit = 10) => 
   
   if (error) {
     throw new Error(error.message);
-  }
+  } 
   
   return data as Donation[];
 };
